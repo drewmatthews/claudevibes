@@ -904,7 +904,7 @@ struct FooterView: View {
             // About section above
             if showAbout {
                 VStack(spacing: 4) {
-                    Link("ClaudeVibes v1.0 (Alpha)", destination: URL(string: "http://claudevibes.drewmatthews.ca")!)
+                    Link("ClaudeVibes v1.1 (Alpha)", destination: URL(string: "http://claudevibes.drewmatthews.ca")!)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
