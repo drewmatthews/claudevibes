@@ -14,7 +14,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let stats = statsManager.stats {
-                StatsContentView(stats: stats, refreshCount: statsManager.refreshCount)
+                StatsContentView(stats: stats, refreshCount: statsManager.refreshCount, liveTodayStats: statsManager.liveTodayStats)
             } else if let error = statsManager.error {
                 ErrorView(message: error)
             } else {
@@ -35,6 +35,7 @@ struct MenuBarView: View {
 struct StatsContentView: View {
     let stats: UsageStats
     var refreshCount: Int = 0
+    var liveTodayStats: LiveTodayStats?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -50,13 +51,13 @@ struct StatsContentView: View {
 
             Divider()
 
-            // Today's Activity - Prominent
-            TodayCard(stats: stats, seed: refreshCount)
+            // Today's Activity - Prominent (using live stats!)
+            TodayCard(stats: stats, seed: refreshCount, liveStats: liveTodayStats)
 
             // Recent Activity Chart
             Divider()
             SectionHeader(icon: "calendar.badge.clock", title: "Activity by Day")
-            RecentActivityChart(dailyActivity: stats.dailyActivity)
+            RecentActivityChart(dailyActivity: stats.dailyActivity, liveTodayStats: liveTodayStats)
 
             Divider()
 
@@ -98,6 +99,7 @@ struct StatsContentView: View {
 struct TodayCard: View {
     let stats: UsageStats
     var seed: Int = 0
+    var liveStats: LiveTodayStats?
 
     private let vibes = [
         // Classic vibes
@@ -397,9 +399,34 @@ struct TodayCard: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 Spacer()
+                if let live = liveStats, live.messageCount > 0 {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 6, height: 6)
+                        Text("Live")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
-            if let today = stats.todayActivity {
+            if let live = liveStats, live.messageCount > 0 {
+                // Use live stats (real-time from session files)
+                HStack(spacing: 12) {
+                    TodayStat(value: "\(live.messageCount)", label: "msgs")
+                    TodayStat(value: "\(live.sessionCount)", label: "sessions")
+                    TodayStat(value: "\(live.toolCallCount)", label: "tools")
+                }
+
+                Text(vibes[vibeIndex])
+                    .font(.caption2)
+                    .italic()
+                    .foregroundColor(.claudePink.opacity(0.8))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 2)
+            } else if let today = stats.todayActivity {
+                // Fall back to cached stats
                 HStack(spacing: 12) {
                     TodayStat(value: "\(today.messageCount)", label: "msgs")
                     TodayStat(value: "\(today.sessionCount)", label: "sessions")
@@ -410,8 +437,10 @@ struct TodayCard: View {
                     .font(.caption2)
                     .italic()
                     .foregroundColor(.claudePink.opacity(0.8))
+                    .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             } else {
+                // No activity yet today
                 Text("No activity yet today")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -420,6 +449,7 @@ struct TodayCard: View {
                     .font(.caption2)
                     .italic()
                     .foregroundColor(.claudePink.opacity(0.8))
+                    .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             }
         }
@@ -434,6 +464,7 @@ struct TodayCard: View {
 
 struct RecentActivityChart: View {
     let dailyActivity: [DailyActivity]
+    var liveTodayStats: LiveTodayStats?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -478,7 +509,8 @@ struct RecentActivityChart: View {
     }
 
     private var totalMessages: Int {
-        dailyActivity.reduce(0) { $0 + $1.messageCount }
+        // Sum from rolling7Days to include live stats for today
+        rolling7Days.filter { !$0.isFuture }.reduce(0) { $0 + $1.messageCount }
     }
 
     private var rolling7Days: [DayData] {
@@ -499,9 +531,16 @@ struct RecentActivityChart: View {
             if let date = calendar.date(byAdding: .day, value: offset, to: today) {
                 let dateString = formatter.string(from: date)
                 let dayOfMonth = calendar.component(.day, from: date)
-                let messageCount = dataByDate[dateString] ?? 0
                 let isFuture = offset > 0
                 let isToday = offset == 0
+
+                // Use live stats for today if available, otherwise use cached data
+                let messageCount: Int
+                if isToday, let live = liveTodayStats, live.messageCount > 0 {
+                    messageCount = live.messageCount
+                } else {
+                    messageCount = dataByDate[dateString] ?? 0
+                }
 
                 days.append(DayData(
                     date: dateString,
@@ -865,12 +904,17 @@ struct FooterView: View {
             // About section above
             if showAbout {
                 VStack(spacing: 4) {
-                    Text("ClaudeVibes v1.0 (Alpha)")
+                    Link("ClaudeVibes v1.0 (Alpha)", destination: URL(string: "http://claudevibes.drewmatthews.ca")!)
                         .font(.caption)
                         .fontWeight(.medium)
-                    Text("Made with Claude Code ✨")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary)
+                    HStack(spacing: 0) {
+                        Link("Drew", destination: URL(string: "https://drewmatthews.ca")!)
+                            .foregroundColor(.claudePink)
+                        Text(" made this with Claude Code ✨")
+                            .foregroundColor(.secondary)
+                    }
+                    .font(.caption2)
                     Text("Not affiliated with Anthropic")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary.opacity(0.7))
@@ -897,10 +941,19 @@ struct FooterView: View {
 
                 Spacer()
 
-                Button("Refresh") {
+                Button {
                     statsManager.loadStats()
+                } label: {
+                    if statsManager.isRefreshing {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 50)
+                    } else {
+                        Text("Refresh")
+                    }
                 }
                 .buttonStyle(HoverButtonStyle(color: .claudePink))
+                .disabled(statsManager.isRefreshing)
 
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
@@ -911,6 +964,9 @@ struct FooterView: View {
     }
 
     private var lastUpdatedText: String {
+        if statsManager.isRefreshing {
+            return "Refreshing..."
+        }
         if let lastUpdated = statsManager.lastUpdated {
             return "Updated \(timeFormatter.string(from: lastUpdated))"
         }

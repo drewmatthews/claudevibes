@@ -12,6 +12,7 @@
 		E81234560003 /* UsageStatsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550003 /* UsageStatsModel.swift */; };
 		E81234560004 /* StatsFileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550004 /* StatsFileWatcher.swift */; };
 		E81234560005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E81234550005 /* Assets.xcassets */; };
+		E81234560006 /* LiveSessionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550006 /* LiveSessionParser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +22,7 @@
 		E81234550003 /* UsageStatsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatsModel.swift; sourceTree = "<group>"; };
 		E81234550004 /* StatsFileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsFileWatcher.swift; sourceTree = "<group>"; };
 		E81234550005 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E81234550006 /* LiveSessionParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSessionParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -49,6 +51,7 @@
 				E81234550002 /* MenuBarView.swift */,
 				E81234550003 /* UsageStatsModel.swift */,
 				E81234550004 /* StatsFileWatcher.swift */,
+				E81234550006 /* LiveSessionParser.swift */,
 				E81234550005 /* Assets.xcassets */,
 			);
 			path = ClaudeUsageMenu;
@@ -135,6 +138,7 @@
 				E81234560002 /* MenuBarView.swift in Sources */,
 				E81234560003 /* UsageStatsModel.swift in Sources */,
 				E81234560004 /* StatsFileWatcher.swift in Sources */,
+				E81234560006 /* LiveSessionParser.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
