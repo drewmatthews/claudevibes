@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClaudeVibes - Your Claude Code Receipts</title>
+    <meta name="description" content="A tiny macOS menu bar app that keeps an eye on your Claude Code stats so you don't have to.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✨</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0f0f0f;
+            --bg-card: #1a1a1a;
+            --text: #f5f5f5;
+            --text-muted: #888;
+            --pink: #D98C8C;
+            --pink-light: #EBB3B3;
+            --pink-dark: #BF7373;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0 60px;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .hero-content {
+            text-align: left;
+        }
+
+        .hero-sparkle {
+            margin-bottom: 16px;
+            color: var(--pink);
+        }
+
+        .hero-sparkle svg {
+            width: 48px;
+            height: 48px;
+        }
+
+        .hero h1 {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--pink-light), var(--pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .tagline {
+            font-size: clamp(16px, 2.5vw, 20px);
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .hero .subtagline {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 32px;
+        }
+
+        /* App Screenshot */
+        .app-screenshot {
+        }
+
+        .app-screenshot img {
+            width: 100%;
+            display: block;
+        }
+
+        /* Download Button */
+        .download-section {
+            margin-top: 0;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--pink);
+            color: var(--bg);
+            padding: 14px 28px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .download-btn:hover {
+            background: var(--pink-light);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(217, 140, 140, 0.3);
+        }
+
+        .download-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .download-note {
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Features */
+        .features {
+            padding: 40px 0 0;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: border-color 0.2s ease;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(217, 140, 140, 0.3);
+        }
+
+        .feature-card .icon {
+            width: 32px;
+            height: 32px;
+            margin-bottom: 12px;
+            color: var(--pink);
+        }
+
+        .feature-card .icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .feature-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--pink-light);
+        }
+
+        .feature-card p {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* How it works */
+        .how-it-works {
+            padding: 20px 0 60px;
+            text-align: center;
+        }
+
+        .how-it-works-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 40px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .how-it-works .icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 20px;
+            color: var(--pink);
+        }
+
+        .how-it-works h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+
+        .how-it-works p {
+            font-size: 15px;
+            color: var(--text-muted);
+            max-width: 500px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .how-it-works code {
+            background: rgba(217, 140, 140, 0.15);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--pink);
+            white-space: nowrap;
+        }
+
+        .vibes-list {
+            margin-top: 28px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .vibes-list span {
+            background: rgba(255,255,255,0.05);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .vibes-list span:last-child {
+            background: rgba(217, 140, 140, 0.15);
+            color: var(--pink);
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        footer p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        footer a {
+            color: var(--pink);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .disclaimer {
+            font-size: 12px;
+            color: var(--text-muted);
+            opacity: 0.6;
+            margin-top: 16px;
+        }
+
+        .quote {
+            margin-top: 40px;
+            font-style: italic;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            .hero {
+                padding: 60px 0 40px;
+            }
+
+            .hero-grid {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .hero-content {
+                text-align: center;
+                order: 1;
+            }
+
+            .app-screenshot {
+                order: 2;
+                max-width: 280px;
+                margin: 0 auto;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .vibes-list span {
+                display: block;
+                margin: 4px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <!-- Hero -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-grid">
+                    <div class="hero-content">
+                        <div class="hero-sparkle">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                                <path d="M5 3v4"/>
+                                <path d="M19 17v4"/>
+                                <path d="M3 5h4"/>
+                                <path d="M17 19h4"/>
+                            </svg>
+                        </div>
+                        <h1>ClaudeVibes</h1>
+                        <p class="tagline">Your Claude Code receipts.</p>
+                        <p class="subtagline">Because if you're gonna vibe-code, you want the stats.</p>
+
+                        <!-- Download -->
+                        <div class="download-section">
+                            <a href="#" class="download-btn">
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H8l4-4 4 4h-3v4h-2z" transform="rotate(180 12 12)"/>
+                                </svg>
+                                Download for Mac
+                            </a>
+                            <p class="download-note">Requires macOS 13+ and Claude Code</p>
+                        </div>
+                    </div>
+
+                    <div class="app-screenshot">
+                        <img src="img/Screenshot.png" alt="ClaudeVibes app screenshot showing usage stats">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features">
+            <div class="container">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <h3>Today's Damage</h3>
+                        <p>Messages, sessions, and tool calls. See exactly how hard you've been running Claude today.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="20" x2="18" y2="10"/>
+                                <line x1="12" y1="20" x2="12" y2="4"/>
+                                <line x1="6" y1="20" x2="6" y2="14"/>
+                            </svg>
+                        </div>
+                        <h3>7-Day Rhythm</h3>
+                        <p>A rolling week of activity. Are you consistent or feral? The chart knows.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2v4"/>
+                                <path d="M12 18v4"/>
+                                <path d="M4.93 4.93l2.83 2.83"/>
+                                <path d="M16.24 16.24l2.83 2.83"/>
+                                <path d="M2 12h4"/>
+                                <path d="M18 12h4"/>
+                                <path d="M4.93 19.07l2.83-2.83"/>
+                                <path d="M16.24 7.76l2.83-2.83"/>
+                            </svg>
+                        </div>
+                        <h3>Token Breakdown</h3>
+                        <p>Input, output, and cache usage by model. Know where your tokens are going.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section class="how-it-works">
+            <div class="container">
+                <div class="how-it-works-card">
+                    <h2>How it works</h2>
+                    <p>
+                        Reads the stats file Claude Code already keeps at
+                        <code>~/.claude/stats-cache.json</code> and watches for changes.
+                    </p>
+                    <div class="vibes-list">
+                        <span>No polling</span>
+                        <span>No API calls</span>
+                        <span>No nonsense</span>
+                        <span>Just vibes</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <div class="container">
+                <p>Built by <a href="https://drewmatthews.ca">Drew</a></p>
+                <p>Made with Claude Code</p>
+                <p class="disclaimer">Not affiliated with Anthropic</p>
+                <p class="quote">"Vibes are temporary. Stats are forever ☕"</p>
+            </div>
+        </footer>
+    </main>
+</body>
+</html>
