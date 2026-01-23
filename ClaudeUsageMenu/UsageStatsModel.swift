@@ -408,6 +408,11 @@ class StatsManager: ObservableObject {
                     let data = fileHandle.readDataToEndOfFile()
                     try fileHandle.close()
 
+                    // Check for empty file
+                    if data.isEmpty {
+                        throw NSError(domain: "ClaudeVibes", code: 1, userInfo: [NSLocalizedDescriptionKey: "Stats file is empty"])
+                    }
+
                     let decoder = JSONDecoder()
                     stats = try decoder.decode(UsageStats.self, from: data)
                     lastError = nil
@@ -430,8 +435,22 @@ class StatsManager: ObservableObject {
                 logger.info("Stats loaded: \(stats.totalMessages) messages, \(stats.totalSessions) sessions")
             } else if let error = lastError as? DecodingError {
                 loadedStats = nil
-                loadedError = "Failed to parse stats: \(error.localizedDescription)"
-                logger.error("Failed to parse stats after 3 attempts: \(error.localizedDescription)")
+                // Provide detailed decoding error info
+                let errorDetail: String
+                switch error {
+                case .keyNotFound(let key, _):
+                    errorDetail = "Missing field: \(key.stringValue)"
+                case .typeMismatch(let type, let context):
+                    errorDetail = "Type mismatch for \(context.codingPath.map { $0.stringValue }.joined(separator: ".")): expected \(type)"
+                case .valueNotFound(let type, let context):
+                    errorDetail = "Missing value for \(context.codingPath.map { $0.stringValue }.joined(separator: ".")): expected \(type)"
+                case .dataCorrupted(let context):
+                    errorDetail = "Corrupted data at \(context.codingPath.map { $0.stringValue }.joined(separator: "."))"
+                @unknown default:
+                    errorDetail = error.localizedDescription
+                }
+                loadedError = "stats-parse-error"
+                logger.error("Failed to parse stats: \(errorDetail)")
             } else {
                 loadedStats = nil
                 loadedError = lastError.map { "Failed to load stats: \($0.localizedDescription)" }

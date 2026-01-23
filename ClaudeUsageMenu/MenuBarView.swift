@@ -865,6 +865,19 @@ struct ErrorView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+            } else if message == "stats-parse-error" {
+                Image(systemName: "doc.badge.gearshape")
+                    .font(.title2)
+                    .foregroundColor(.claudePink)
+                Text("Stats Format Changed")
+                    .font(.headline)
+                Text("Claude Code's stats format may have updated.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("Check for a ClaudeVibes update, or try refreshing.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             } else {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.title2)
@@ -900,12 +913,17 @@ struct FooterView: View {
     @ObservedObject var statsManager: StatsManager
     @State private var showAbout = false
 
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        return "v\(version) (Alpha)"
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             // About section above
             if showAbout {
                 VStack(spacing: 4) {
-                    Link("ClaudeVibes v1.1 (Alpha)", destination: URL(string: "http://claudevibes.drewmatthews.ca")!)
+                    Link("ClaudeVibes \(appVersion)", destination: URL(string: "http://claudevibes.drewmatthews.ca")!)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
