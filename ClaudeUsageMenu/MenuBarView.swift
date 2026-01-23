@@ -14,7 +14,7 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let stats = statsManager.stats {
-                StatsContentView(stats: stats, refreshCount: statsManager.refreshCount, liveTodayStats: statsManager.liveTodayStats)
+                StatsContentView(stats: stats, refreshCount: statsManager.refreshCount, liveTodayStats: statsManager.liveTodayStats, correctedDailyActivity: statsManager.correctedDailyActivity)
             } else if let error = statsManager.error {
                 ErrorView(message: error)
             } else {
@@ -27,6 +27,7 @@ struct MenuBarView: View {
         }
         .padding(12)
         .frame(width: 300)
+        .background(Color.black.opacity(0.40))
     }
 }
 
@@ -36,6 +37,7 @@ struct StatsContentView: View {
     let stats: UsageStats
     var refreshCount: Int = 0
     var liveTodayStats: LiveTodayStats?
+    var correctedDailyActivity: [DailyActivity] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -54,10 +56,10 @@ struct StatsContentView: View {
             // Today's Activity - Prominent (using live stats!)
             TodayCard(stats: stats, seed: refreshCount, liveStats: liveTodayStats)
 
-            // Recent Activity Chart
+            // Recent Activity Chart (using corrected history data)
             Divider()
             SectionHeader(icon: "calendar.badge.clock", title: "Activity by Day")
-            RecentActivityChart(dailyActivity: stats.dailyActivity, liveTodayStats: liveTodayStats)
+            RecentActivityChart(dailyActivity: correctedDailyActivity, liveTodayStats: liveTodayStats)
 
             Divider()
 
@@ -385,9 +387,8 @@ struct TodayCard: View {
     ]
 
     private var vibeIndex: Int {
-        // Combine seed with random element for variety
-        let randomizer = Int.random(in: 0..<vibes.count)
-        return (abs(seed) + randomizer) % vibes.count
+        // Use seed (refreshCount) to pick a consistent vibe until next refresh
+        abs(seed) % vibes.count
     }
 
     var body: some View {
