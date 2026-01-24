@@ -28,6 +28,7 @@ struct MenuBarView: View {
         .padding(12)
         .frame(width: 300)
         .background(Color.black.opacity(0.40))
+        .preferredColorScheme(.dark)
     }
 }
 

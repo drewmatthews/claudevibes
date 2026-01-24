@@ -8,7 +8,8 @@
 #   4. Take a screenshot
 #   5. Update the website (screenshot + download link)
 #   6. Create release folder
-#   7. Optionally commit and tag
+#   7. Commit, tag, and push to remote
+#   8. Create GitHub release with zip attached
 #
 # Usage: ./scripts/release.sh <version> [--notes "Release notes"]
 #
@@ -55,6 +56,7 @@ VERSION=""
 RELEASE_NOTES=""
 SKIP_COMMIT=false
 SKIP_SCREENSHOT=false
+SKIP_GITHUB=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -70,6 +72,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_SCREENSHOT=true
             shift
             ;;
+        --skip-github)
+            SKIP_GITHUB=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 <version> [options]"
             echo ""
@@ -77,6 +83,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --notes \"text\"     Release notes for this version"
             echo "  --skip-commit      Don't create git commit/tag"
             echo "  --skip-screenshot  Don't capture new screenshot"
+            echo "  --skip-github      Don't create GitHub release"
             echo "  -h, --help         Show this help"
             echo ""
             echo "Example: $0 1.3-alpha --notes \"Added dark mode\""
@@ -271,12 +278,67 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
         git tag -a "v$VERSION" -m "Release v$VERSION"
 
         print_success "Committed and tagged v$VERSION"
-        print_warning "Don't forget to: git push && git push --tags"
+
+        # Push to remote
+        print_step "Pushing to remote..."
+        git push && git push --tags
+        print_success "Pushed commits and tags to remote"
     else
         print_warning "No changes to commit"
+
+        # Check if tag exists and push it if needed
+        if git tag -l "v$VERSION" | grep -q "v$VERSION"; then
+            if ! git ls-remote --tags origin | grep -q "refs/tags/v$VERSION"; then
+                print_step "Pushing tag to remote..."
+                git push --tags
+                print_success "Pushed tag v$VERSION to remote"
+            fi
+        fi
     fi
 else
     print_warning "Skipping git commit/tag"
+fi
+
+# Step 10: Create GitHub release (unless skipped)
+if [[ "$SKIP_GITHUB" == false ]]; then
+    print_step "Creating GitHub release..."
+
+    # Check if gh CLI is available
+    if ! command -v gh &> /dev/null; then
+        print_error "GitHub CLI (gh) not found. Install with: brew install gh"
+        print_warning "Skipping GitHub release creation"
+    else
+        # Check if release already exists
+        if gh release view "v$VERSION" --repo drewmatthews/claudevibes &> /dev/null; then
+            print_warning "Release v$VERSION already exists on GitHub"
+        else
+            # Create the release
+            RELEASE_BODY="## Changes
+
+${RELEASE_NOTES:-"- Bug fixes and improvements"}
+
+## Installation
+
+1. Download \`$ZIP_NAME\`
+2. Extract and drag \`ClaudeVibes.app\` to Applications
+3. First launch: Right-click → Open (app is unsigned)
+
+## Requirements
+
+- macOS 13 (Ventura) or newer
+- Claude Code installed"
+
+            gh release create "v$VERSION" \
+                "$RELEASE_FOLDER/$ZIP_NAME" \
+                --repo drewmatthews/claudevibes \
+                --title "ClaudeVibes v$VERSION" \
+                --notes "$RELEASE_BODY"
+
+            print_success "GitHub release created: https://github.com/drewmatthews/claudevibes/releases/tag/v$VERSION"
+        fi
+    fi
+else
+    print_warning "Skipping GitHub release"
 fi
 
 # Summary
@@ -289,10 +351,9 @@ echo "Version:     v$VERSION"
 echo "Build:       $NEW_BUILD"
 echo "Release:     $RELEASE_FOLDER"
 echo "Zip:         $ZIP_NAME"
+echo "GitHub:      https://github.com/drewmatthews/claudevibes/releases/tag/v$VERSION"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Test the app from: $RELEASE_FOLDER/$APP_NAME.app"
-echo "  2. Push changes: git push && git push --tags"
-echo "  3. Create GitHub release and upload: $RELEASE_FOLDER/$ZIP_NAME"
-echo "  4. Deploy website changes"
+echo "  2. Deploy website changes (if not using GitHub Pages)"
 echo ""
