@@ -208,6 +208,9 @@ NEW_LINK="href=\"https://github.com/drewmatthews/claudevibes/releases/latest/dow
 
 sed -i '' "s|$OLD_LINK_PATTERN|$NEW_LINK|g" "$WEBSITE_DIR/index.html"
 
+# Update version number in download note
+sed -i '' "s|<p class=\"download-note\">v[^<]*·|<p class=\"download-note\">v$VERSION ·|g" "$WEBSITE_DIR/index.html"
+
 print_success "Website download link updated to $ZIP_NAME"
 
 # Step 7: Copy zip to website releases folder (for local hosting backup)
