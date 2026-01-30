@@ -740,21 +740,28 @@ struct SessionTimerRow: View {
                     .foregroundColor(.secondary)
             }
 
-            // Token count for today (from cached stats)
-            if let today = stats.todayActivity {
-                let todayTokens = stats.dailyModelTokens
-                    .filter { $0.date == today.date }
-                    .flatMap { $0.tokensByModel.values }
-                    .reduce(0, +)
-                if todayTokens > 0 {
-                    HStack(spacing: 3) {
-                        Image(systemName: "number")
-                            .font(.system(size: 8))
-                            .foregroundColor(.secondary)
-                        Text("\(todayTokens.formattedCompact) tokens")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
+            // Token count for today (prefer live stats, fall back to cached)
+            let todayTokens: Int = {
+                if liveStats.totalTokens > 0 {
+                    return liveStats.totalTokens
+                }
+                if let today = stats.todayActivity {
+                    return stats.dailyModelTokens
+                        .filter { $0.date == today.date }
+                        .flatMap { $0.tokensByModel.values }
+                        .reduce(0, +)
+                }
+                return 0
+            }()
+
+            if todayTokens > 0 {
+                HStack(spacing: 3) {
+                    Image(systemName: "number")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                    Text("\(todayTokens.formattedCompact) tokens")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
                 }
             }
 

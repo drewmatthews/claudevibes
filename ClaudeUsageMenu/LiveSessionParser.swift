@@ -12,15 +12,18 @@ struct SessionEntry: Codable {
 struct SessionMessage: Codable {
     let role: String?
     let content: SessionContent?
+    let usage: TokenUsage?
 
     enum CodingKeys: String, CodingKey {
         case role
         case content
+        case usage
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         role = try container.decodeIfPresent(String.self, forKey: .role)
+        usage = try container.decodeIfPresent(TokenUsage.self, forKey: .usage)
 
         // Content can be a string or an array of objects
         if let contentArray = try? container.decode([ContentItem].self, forKey: .content) {
@@ -31,6 +34,13 @@ struct SessionMessage: Codable {
             content = nil
         }
     }
+}
+
+struct TokenUsage: Codable {
+    let input_tokens: Int?
+    let output_tokens: Int?
+    let cache_creation_input_tokens: Int?
+    let cache_read_input_tokens: Int?
 }
 
 enum SessionContent: Codable {
@@ -85,6 +95,16 @@ struct LiveTodayStats {
     var sessionIds: Set<String> = []
     var earliestTimestamp: Date? = nil
     var latestTimestamp: Date? = nil
+
+    // Token usage
+    var inputTokens: Int = 0
+    var outputTokens: Int = 0
+    var cacheCreationTokens: Int = 0
+    var cacheReadTokens: Int = 0
+
+    var totalTokens: Int {
+        inputTokens + outputTokens + cacheCreationTokens + cacheReadTokens
+    }
 }
 
 // MARK: - Live Session Parser
@@ -166,12 +186,21 @@ class LiveSessionParser {
                     }
                 }
 
-                // Count tool calls and file edits from assistant messages
+                // Count tool calls, file edits, and tokens from assistant messages
                 if entry.type == "assistant",
-                   let message = entry.message,
-                   let content = message.content {
-                    stats.toolCallCount += content.toolCallCount
-                    stats.fileEditCount += content.fileEditCount
+                   let message = entry.message {
+                    if let content = message.content {
+                        stats.toolCallCount += content.toolCallCount
+                        stats.fileEditCount += content.fileEditCount
+                    }
+
+                    // Track token usage
+                    if let usage = message.usage {
+                        stats.inputTokens += usage.input_tokens ?? 0
+                        stats.outputTokens += usage.output_tokens ?? 0
+                        stats.cacheCreationTokens += usage.cache_creation_input_tokens ?? 0
+                        stats.cacheReadTokens += usage.cache_read_input_tokens ?? 0
+                    }
                 }
 
             } catch {
