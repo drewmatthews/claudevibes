@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+import UserNotifications
 
 private let logger = Logger(subsystem: "com.claudevibes", category: "stats")
 
@@ -48,11 +49,121 @@ struct LongestSession: Codable {
     let timestamp: String
 }
 
+// MARK: - New Analytics Models
+
+struct StreakData: Codable, Equatable {
+    var currentStreak: Int
+    var longestStreak: Int
+    var lastActiveDate: String
+
+    static let empty = StreakData(currentStreak: 0, longestStreak: 0, lastActiveDate: "")
+}
+
+struct CacheAnalytics {
+    let hitRate: Double
+    let savingsPercentage: Int
+}
+
+struct ValueMeter {
+    let estimatedValue: Double
+    let breakdown: [String: Double]
+}
+
+enum MilestoneType: String, Codable, CaseIterable {
+    case messages1K = "messages_1k"
+    case messages10K = "messages_10k"
+    case messages100K = "messages_100k"
+    case sessions100 = "sessions_100"
+    case sessions1K = "sessions_1k"
+    case streak7 = "streak_7"
+    case streak30 = "streak_30"
+    case tokens1M = "tokens_1m"
+    case tokens10M = "tokens_10m"
+    case tokens100M = "tokens_100m"
+
+    var displayName: String {
+        switch self {
+        case .messages1K: return "1K Messages"
+        case .messages10K: return "10K Messages"
+        case .messages100K: return "100K Messages"
+        case .sessions100: return "100 Sessions"
+        case .sessions1K: return "1K Sessions"
+        case .streak7: return "7-Day Streak"
+        case .streak30: return "30-Day Streak"
+        case .tokens1M: return "1M Tokens"
+        case .tokens10M: return "10M Tokens"
+        case .tokens100M: return "100M Tokens"
+        }
+    }
+
+    var threshold: Int {
+        switch self {
+        case .messages1K: return 1_000
+        case .messages10K: return 10_000
+        case .messages100K: return 100_000
+        case .sessions100: return 100
+        case .sessions1K: return 1_000
+        case .streak7: return 7
+        case .streak30: return 30
+        case .tokens1M: return 1_000_000
+        case .tokens10M: return 10_000_000
+        case .tokens100M: return 100_000_000
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .messages1K: return "💬"
+        case .messages10K: return "🗣️"
+        case .messages100K: return "🏆"
+        case .sessions100: return "💻"
+        case .sessions1K: return "🖥️"
+        case .streak7: return "🔥"
+        case .streak30: return "🌟"
+        case .tokens1M: return "🪙"
+        case .tokens10M: return "💎"
+        case .tokens100M: return "👑"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .messages1K: return "bubble.left.fill"
+        case .messages10K: return "bubble.left.and.bubble.right.fill"
+        case .messages100K: return "star.bubble.fill"
+        case .sessions100: return "terminal.fill"
+        case .sessions1K: return "desktopcomputer"
+        case .streak7: return "flame.fill"
+        case .streak30: return "flame.circle.fill"
+        case .tokens1M: return "circlebadge.fill"
+        case .tokens10M: return "circlebadge.2.fill"
+        case .tokens100M: return "crown.fill"
+        }
+    }
+
+    func isAchieved(totalMessages: Int, totalSessions: Int, currentStreak: Int, totalTokens: Int) -> Bool {
+        switch self {
+        case .messages1K: return totalMessages >= threshold
+        case .messages10K: return totalMessages >= threshold
+        case .messages100K: return totalMessages >= threshold
+        case .sessions100: return totalSessions >= threshold
+        case .sessions1K: return totalSessions >= threshold
+        case .streak7: return currentStreak >= threshold
+        case .streak30: return currentStreak >= threshold
+        case .tokens1M: return totalTokens >= threshold
+        case .tokens10M: return totalTokens >= threshold
+        case .tokens100M: return totalTokens >= threshold
+        }
+    }
+}
+
 // MARK: - Computed Properties Extension
 
 extension UsageStats {
     var todayActivity: DailyActivity? {
-        let today = ISO8601DateFormatter.dateOnlyFormatter.string(from: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: Date())
         return dailyActivity.first { $0.date == today }
     }
 
@@ -76,6 +187,69 @@ extension UsageStats {
         }
         return "\(minutes)m"
     }
+
+    // MARK: Cache Analytics
+
+    var cacheAnalytics: CacheAnalytics {
+        let totalInput = modelUsage.values.reduce(0) {
+            $0 + $1.inputTokens + $1.cacheReadInputTokens + $1.cacheCreationInputTokens
+        }
+        let cacheRead = modelUsage.values.reduce(0) { $0 + $1.cacheReadInputTokens }
+        let hitRate = totalInput > 0 ? Double(cacheRead) / Double(totalInput) : 0
+        return CacheAnalytics(hitRate: hitRate, savingsPercentage: Int(hitRate * 100))
+    }
+
+    // MARK: Peak Hour
+
+    var peakHour: Int {
+        let hourInts = hourCounts.compactMap { (key, value) -> (Int, Int)? in
+            guard let hour = Int(key) else { return nil }
+            return (hour, value)
+        }
+        return hourInts.max(by: { $0.1 < $1.1 })?.0 ?? 12
+    }
+
+    var peakHourFormatted: String {
+        formatHour(peakHour)
+    }
+
+    // MARK: Value Estimation (based on public API pricing per 1M tokens)
+
+    var estimatedValue: ValueMeter {
+        var total = 0.0
+        var breakdown: [String: Double] = [:]
+
+        for (modelName, usage) in modelUsage {
+            let rates = apiRates(for: modelName)
+            let value = Double(usage.inputTokens) / 1_000_000.0 * rates.input
+                + Double(usage.outputTokens) / 1_000_000.0 * rates.output
+                + Double(usage.cacheReadInputTokens) / 1_000_000.0 * rates.cacheRead
+            total += value
+            breakdown[modelName] = value
+        }
+
+        return ValueMeter(estimatedValue: total, breakdown: breakdown)
+    }
+
+    private func apiRates(for model: String) -> (input: Double, output: Double, cacheRead: Double) {
+        let name = model.lowercased()
+        if name.contains("opus") {
+            return (15.0, 75.0, 1.50)
+        } else if name.contains("sonnet") {
+            return (3.0, 15.0, 0.30)
+        } else if name.contains("haiku") {
+            return (0.80, 4.0, 0.08)
+        }
+        return (3.0, 15.0, 0.30) // default to Sonnet pricing
+    }
+
+    // MARK: Model Distribution
+
+    var modelDistribution: [(name: String, tokens: Int)] {
+        modelUsage.map { (name, usage) in
+            (name: name, tokens: usage.totalTokens)
+        }.sorted { $0.tokens > $1.tokens }
+    }
 }
 
 extension ModelUsage {
@@ -97,6 +271,17 @@ extension Int {
     }
 }
 
+extension Double {
+    var formattedCurrency: String {
+        if self >= 100 {
+            return String(format: "$%.0f", self)
+        } else if self >= 10 {
+            return String(format: "$%.1f", self)
+        }
+        return String(format: "$%.2f", self)
+    }
+}
+
 // MARK: - Date Formatting
 
 extension ISO8601DateFormatter {
@@ -107,15 +292,35 @@ extension ISO8601DateFormatter {
     }()
 }
 
+func formatHour(_ hour: Int) -> String {
+    if hour == 0 { return "12am" }
+    if hour < 12 { return "\(hour)am" }
+    if hour == 12 { return "12pm" }
+    return "\(hour - 12)pm"
+}
+
 // MARK: - Local History Storage
 
 struct LocalHistory: Codable {
     var dailyStats: [String: DailyActivity] // date string -> activity
     var lastUpdated: Date
+    var achievedMilestones: [String: String] // milestone rawValue -> date achieved
+
+    enum CodingKeys: String, CodingKey {
+        case dailyStats, lastUpdated, achievedMilestones
+    }
 
     init() {
         self.dailyStats = [:]
         self.lastUpdated = Date()
+        self.achievedMilestones = [:]
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        dailyStats = try container.decode([String: DailyActivity].self, forKey: .dailyStats)
+        lastUpdated = try container.decode(Date.self, forKey: .lastUpdated)
+        achievedMilestones = (try? container.decode([String: String].self, forKey: .achievedMilestones)) ?? [:]
     }
 
     /// Merge new activity, keeping the higher values for each metric
@@ -158,6 +363,106 @@ struct LocalHistory: Codable {
                 return false
             }
             .sorted { $0.date < $1.date }
+    }
+
+    // MARK: Streak Calculation
+
+    func calculateStreak() -> StreakData {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = calendar.startOfDay(for: Date())
+        let todayString = formatter.string(from: today)
+        let yesterdayString = formatter.string(from: calendar.date(byAdding: .day, value: -1, to: today)!)
+
+        // Determine starting point for current streak
+        var currentStreak = 0
+        let startDate: Date
+
+        if dailyStats[todayString] != nil {
+            startDate = today
+        } else if dailyStats[yesterdayString] != nil {
+            startDate = calendar.date(byAdding: .day, value: -1, to: today)!
+        } else {
+            // No recent activity
+            let lastDate = dailyStats.keys.sorted().last ?? ""
+            return StreakData(currentStreak: 0, longestStreak: calculateLongestStreak(), lastActiveDate: lastDate)
+        }
+
+        // Count current streak backwards
+        var checkDate = startDate
+        while true {
+            let dateString = formatter.string(from: checkDate)
+            if dailyStats[dateString] != nil {
+                currentStreak += 1
+                checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate)!
+            } else {
+                break
+            }
+        }
+
+        let longestStreak = calculateLongestStreak()
+        let lastDate = dailyStats.keys.sorted().last ?? ""
+
+        return StreakData(
+            currentStreak: currentStreak,
+            longestStreak: max(longestStreak, currentStreak),
+            lastActiveDate: lastDate
+        )
+    }
+
+    private func calculateLongestStreak() -> Int {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        let allDates = dailyStats.keys
+            .compactMap { formatter.date(from: $0) }
+            .map { calendar.startOfDay(for: $0) }
+            .sorted()
+
+        guard !allDates.isEmpty else { return 0 }
+
+        var longest = 1
+        var current = 1
+
+        for i in 1..<allDates.count {
+            if let nextDay = calendar.date(byAdding: .day, value: 1, to: allDates[i - 1]),
+               calendar.isDate(allDates[i], inSameDayAs: nextDay) {
+                current += 1
+            } else {
+                current = 1
+            }
+            longest = max(longest, current)
+        }
+
+        return longest
+    }
+
+    // MARK: Week-over-Week
+
+    func weekOverWeekChange() -> Double? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        var thisWeek = 0
+        var lastWeek = 0
+
+        for offset in 0..<7 {
+            if let date = calendar.date(byAdding: .day, value: -offset, to: today) {
+                let dateStr = formatter.string(from: date)
+                thisWeek += dailyStats[dateStr]?.messageCount ?? 0
+            }
+            if let date = calendar.date(byAdding: .day, value: -(offset + 7), to: today) {
+                let dateStr = formatter.string(from: date)
+                lastWeek += dailyStats[dateStr]?.messageCount ?? 0
+            }
+        }
+
+        guard lastWeek > 0 else { return nil }
+        return Double(thisWeek - lastWeek) / Double(lastWeek) * 100
     }
 }
 
@@ -206,9 +511,6 @@ class HistoryManager {
             return
         }
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-
         var dailyStats: [String: (messages: Int, sessions: Set<String>, toolCalls: Int)] = [:]
 
         while let file = enumerator.nextObject() as? String {
@@ -233,6 +535,18 @@ class HistoryManager {
         logger.info("Historical scan complete: found \(self.history.dailyStats.count) days of activity")
     }
 
+    private static let isoParser: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let localDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private func parseSessionFileForHistory(at path: String, into dailyStats: inout [String: (messages: Int, sessions: Set<String>, toolCalls: Int)]) {
         guard let data = FileManager.default.contents(atPath: path),
               let content = String(data: data, encoding: .utf8) else {
@@ -248,8 +562,9 @@ class HistoryManager {
             do {
                 let entry = try decoder.decode(SessionEntry.self, from: lineData)
 
-                guard let timestamp = entry.timestamp, timestamp.count >= 10 else { continue }
-                let date = String(timestamp.prefix(10)) // Extract yyyy-MM-dd
+                guard let timestamp = entry.timestamp,
+                      let parsedDate = Self.isoParser.date(from: timestamp) else { continue }
+                let date = Self.localDateFormatter.string(from: parsedDate)
 
                 // Initialize if needed
                 if dailyStats[date] == nil {
@@ -317,6 +632,41 @@ class HistoryManager {
     var isEmpty: Bool {
         self.history.dailyStats.isEmpty
     }
+
+    // MARK: Streak
+
+    func calculateStreak() -> StreakData {
+        self.history.calculateStreak()
+    }
+
+    // MARK: Week-over-Week
+
+    func weekOverWeekChange() -> Double? {
+        self.history.weekOverWeekChange()
+    }
+
+    // MARK: Milestones
+
+    func hasMilestone(_ type: MilestoneType) -> Bool {
+        history.achievedMilestones[type.rawValue] != nil
+    }
+
+    func achieveMilestone(_ type: MilestoneType) {
+        let today = DateFormatter.yyyyMMdd.string(from: Date())
+        history.achievedMilestones[type.rawValue] = today
+        save()
+    }
+
+    func achievedMilestoneDate(_ type: MilestoneType) -> String? {
+        history.achievedMilestones[type.rawValue]
+    }
+
+    var allAchievedMilestones: [(type: MilestoneType, date: String)] {
+        MilestoneType.allCases.compactMap { type in
+            guard let date = history.achievedMilestones[type.rawValue] else { return nil }
+            return (type: type, date: date)
+        }
+    }
 }
 
 extension DateFormatter {
@@ -338,6 +688,9 @@ class StatsManager: ObservableObject {
     @Published var liveTodayStats: LiveTodayStats?
     @Published var isRefreshing: Bool = false
     @Published var correctedDailyActivity: [DailyActivity] = []
+    @Published var streakData: StreakData = .empty
+    @Published var weekOverWeek: Double? = nil
+    @Published var newlyAchievedMilestones: [MilestoneType] = []
 
     private let statsFilePath: String
     private var fileWatcher: StatsFileWatcher?
@@ -353,8 +706,17 @@ class StatsManager: ObservableObject {
         ProcessInfo.processInfo.disableAutomaticTermination("Monitoring stats file")
         ProcessInfo.processInfo.disableSuddenTermination()
 
+        // Request notification permission for milestones
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            if granted {
+                logger.info("Notification permission granted")
+            }
+        }
+
         // Load existing history immediately
         correctedDailyActivity = historyManager.getCorrectedActivity()
+        streakData = historyManager.calculateStreak()
+        weekOverWeek = historyManager.weekOverWeekChange()
 
         loadStats()
         setupFileWatcher()
@@ -473,6 +835,46 @@ class StatsManager: ObservableObject {
                 HistoryManager.shared.mergeLive(loadedLiveStats)
             }
             let corrected = HistoryManager.shared.getCorrectedActivity()
+            let streak = HistoryManager.shared.calculateStreak()
+            let wow = HistoryManager.shared.weekOverWeekChange()
+
+            // Check milestones
+            var newMilestones: [MilestoneType] = []
+            if let stats = loadedStats {
+                for type in MilestoneType.allCases {
+                    if !HistoryManager.shared.hasMilestone(type) &&
+                       type.isAchieved(
+                           totalMessages: stats.totalMessages,
+                           totalSessions: stats.totalSessions,
+                           currentStreak: streak.currentStreak,
+                           totalTokens: stats.totalTokens
+                       ) {
+                        HistoryManager.shared.achieveMilestone(type)
+                        newMilestones.append(type)
+                    }
+                }
+            }
+
+            // Capture for concurrency safety
+            let achievedMilestones = newMilestones
+
+            // Send notifications for new milestones (if enabled in preferences)
+            let notificationsEnabled = UserDefaults.standard.object(forKey: "notifications_milestones") as? Bool ?? true
+            if notificationsEnabled {
+                for milestone in achievedMilestones {
+                    let content = UNMutableNotificationContent()
+                    content.title = "ClaudeVibes Milestone! \(milestone.emoji)"
+                    content.body = "You've achieved: \(milestone.displayName)"
+                    content.sound = .default
+
+                    let request = UNNotificationRequest(
+                        identifier: "milestone-\(milestone.rawValue)",
+                        content: content,
+                        trigger: nil
+                    )
+                    try? await UNUserNotificationCenter.current().add(request)
+                }
+            }
 
             // Update UI on main thread
             await MainActor.run {
@@ -480,9 +882,14 @@ class StatsManager: ObservableObject {
                 self.error = finalError
                 self.liveTodayStats = finalLiveStats
                 self.correctedDailyActivity = corrected
+                self.streakData = streak
+                self.weekOverWeek = wow
                 self.lastUpdated = Date()
                 self.refreshCount += 1
                 self.isRefreshing = false
+                if !achievedMilestones.isEmpty {
+                    self.newlyAchievedMilestones = achievedMilestones
+                }
                 self.setupFileWatcher() // Restart file watcher with fresh descriptor
                 self.setupSessionFileWatchers()
             }
@@ -490,22 +897,27 @@ class StatsManager: ObservableObject {
     }
 
     func loadLiveStats() {
-        let parser = liveParser
-        Task.detached(priority: .userInitiated) {
-            let newLiveStats = parser.getTodayStats()
+        // Run on main thread to avoid background execution restrictions
+        let newLiveStats = liveParser.getTodayStats()
 
-            // Merge live stats with history
-            if newLiveStats.messageCount > 0 {
-                HistoryManager.shared.mergeLive(newLiveStats)
-            }
-            let corrected = HistoryManager.shared.getCorrectedActivity()
-
-            await MainActor.run {
-                self.liveTodayStats = newLiveStats
-                self.correctedDailyActivity = corrected
-                self.setupSessionFileWatchers()
-            }
+        // Merge live stats with history
+        if newLiveStats.messageCount > 0 {
+            HistoryManager.shared.mergeLive(newLiveStats)
         }
+        let corrected = HistoryManager.shared.getCorrectedActivity()
+        let streak = HistoryManager.shared.calculateStreak()
+
+        self.liveTodayStats = newLiveStats
+        self.correctedDailyActivity = corrected
+        self.streakData = streak
+        // Only set up watchers if we don't have any yet (avoid file descriptor churn)
+        if sessionFileWatchers.isEmpty {
+            self.setupSessionFileWatchers()
+        }
+    }
+
+    func clearMilestoneAlert() {
+        newlyAchievedMilestones = []
     }
 
     private func setupFileWatcher() {
@@ -537,11 +949,14 @@ class StatsManager: ObservableObject {
     }
 
     private func setupLiveRefresh() {
-        // Also refresh every 30 seconds as a fallback
-        liveRefreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.loadLiveStats()
-            }
+        // Refresh every 15 seconds as a fallback
+        liveRefreshTimer?.invalidate()
+        liveRefreshTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            self?.loadLiveStats()
+        }
+        // Ensure timer fires even during menu tracking
+        if let timer = liveRefreshTimer {
+            RunLoop.main.add(timer, forMode: .common)
         }
     }
 

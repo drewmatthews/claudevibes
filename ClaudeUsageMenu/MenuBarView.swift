@@ -1,20 +1,35 @@
 import SwiftUI
 
-// MARK: - Claude Pink Color
+// MARK: - Theme Colors (dynamic, reads from UserDefaults)
 
 extension Color {
-    static let claudePink = Color(red: 0.85, green: 0.55, blue: 0.55)
-    static let claudePinkLight = Color(red: 0.92, green: 0.70, blue: 0.70)
-    static let claudePinkDark = Color(red: 0.75, green: 0.45, blue: 0.45)
+    private static var currentTheme: ThemePreset {
+        let rawValue = UserDefaults.standard.string(forKey: "selectedTheme") ?? ThemePreset.claudePink.rawValue
+        return ThemePreset(rawValue: rawValue) ?? .claudePink
+    }
+
+    static var claudePink: Color { currentTheme.primary }
+    static var claudePinkLight: Color { currentTheme.primaryLight }
+    static var claudePinkDark: Color { currentTheme.primaryDark }
 }
 
 struct MenuBarView: View {
     @ObservedObject var statsManager: StatsManager
+    @AppStorage("selectedTheme") private var selectedTheme = ThemePreset.claudePink.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let stats = statsManager.stats {
-                StatsContentView(stats: stats, refreshCount: statsManager.refreshCount, liveTodayStats: statsManager.liveTodayStats, correctedDailyActivity: statsManager.correctedDailyActivity)
+                StatsContentView(
+                    stats: stats,
+                    refreshCount: statsManager.refreshCount,
+                    liveTodayStats: statsManager.liveTodayStats,
+                    correctedDailyActivity: statsManager.correctedDailyActivity,
+                    streakData: statsManager.streakData,
+                    weekOverWeek: statsManager.weekOverWeek,
+                    newMilestones: statsManager.newlyAchievedMilestones,
+                    onDismissMilestones: { statsManager.clearMilestoneAlert() }
+                )
             } else if let error = statsManager.error {
                 ErrorView(message: error)
             } else {
@@ -25,10 +40,15 @@ struct MenuBarView: View {
 
             FooterView(statsManager: statsManager)
         }
+        .id(selectedTheme) // Force full re-render when theme changes
         .padding(12)
         .frame(width: 300)
         .background(Color.black.opacity(0.40))
         .preferredColorScheme(.dark)
+        .onAppear {
+            // Refresh live stats when menu opens
+            statsManager.loadLiveStats()
+        }
     }
 }
 
@@ -39,10 +59,24 @@ struct StatsContentView: View {
     var refreshCount: Int = 0
     var liveTodayStats: LiveTodayStats?
     var correctedDailyActivity: [DailyActivity] = []
+    var streakData: StreakData = .empty
+    var weekOverWeek: Double? = nil
+    var newMilestones: [MilestoneType] = []
+    var onDismissMilestones: (() -> Void)? = nil
+
+    @AppStorage("show_quickInsights") private var showQuickInsights = true
+    @AppStorage("show_peakHours") private var showPeakHours = true
+    @AppStorage("show_efficiency") private var showEfficiency = true
+    @AppStorage("show_activity") private var showActivity = true
+    @AppStorage("show_trend") private var showTrend = true
+    @AppStorage("show_allTime") private var showAllTime = true
+    @AppStorage("show_valueMeter") private var showValueMeter = true
+    @AppStorage("show_tokenUsage") private var showTokenUsage = true
+    @AppStorage("show_milestones") private var showMilestones = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
+            // Header with streak badge
             HStack {
                 Image(systemName: "sparkles")
                     .foregroundColor(.claudePink)
@@ -50,49 +84,535 @@ struct StatsContentView: View {
                     .font(.headline)
                     .foregroundColor(.claudePink)
                 Spacer()
-            }
-
-            Divider()
-
-            // Today's Activity - Prominent (using live stats!)
-            TodayCard(stats: stats, seed: refreshCount, liveStats: liveTodayStats)
-
-            // Recent Activity Chart (using corrected history data)
-            Divider()
-            SectionHeader(icon: "calendar.badge.clock", title: "Activity by Day")
-            RecentActivityChart(dailyActivity: correctedDailyActivity, liveTodayStats: liveTodayStats)
-
-            Divider()
-
-            // Overall Stats
-            SectionHeader(icon: "chart.line.uptrend.xyaxis", title: "All Time")
-            StatRow(label: "Sessions", value: "\(stats.totalSessions)")
-            StatRow(label: "Messages", value: stats.totalMessages.formattedCompact)
-            StatRow(label: "Since", value: stats.formattedFirstSession)
-
-            Divider()
-
-            // Model Usage
-            SectionHeader(icon: "cpu", title: "Token Usage")
-            ForEach(Array(stats.modelUsage.keys.sorted()), id: \.self) { modelName in
-                if let usage = stats.modelUsage[modelName] {
-                    ModelUsageRow(modelName: modelName, usage: usage)
+                if streakData.currentStreak > 0 {
+                    StreakBadge(streak: streakData.currentStreak)
                 }
             }
 
+            // Milestone celebration banner
+            if !newMilestones.isEmpty {
+                MilestoneCelebration(milestones: newMilestones, onDismiss: onDismissMilestones)
+            }
+
             Divider()
 
-            // Longest Session
-            SectionHeader(icon: "trophy.fill", title: "Longest Session")
-            HStack {
-                Text("\(stats.longestSession.messageCount.formatted()) messages")
-                    .font(.caption)
+            // Today's Activity - always shown
+            TodayCard(stats: stats, seed: refreshCount, liveStats: liveTodayStats)
+
+            if showQuickInsights {
+                QuickInsightsRow(
+                    streak: streakData.currentStreak,
+                    cacheRate: stats.cacheAnalytics.savingsPercentage,
+                    toolCalls: liveTodayStats?.toolCallCount ?? stats.todayActivity?.toolCallCount ?? 0,
+                    fileEdits: liveTodayStats?.fileEditCount ?? 0
+                )
+            }
+
+            if showPeakHours {
+                Divider()
+                SectionHeader(icon: "clock.fill", title: "Peak Hours")
+                PeakHoursView(hourCounts: stats.hourCounts)
+            }
+
+            if showEfficiency {
+                Divider()
+                SectionHeader(icon: "gauge.with.dots.needle.33percent", title: "Efficiency")
+                CacheEffectivenessView(analytics: stats.cacheAnalytics)
+            }
+
+            if showActivity {
+                Divider()
+                SectionHeader(icon: "calendar.badge.clock", title: "Activity")
+                RecentActivityChart(dailyActivity: correctedDailyActivity, liveTodayStats: liveTodayStats)
+            }
+
+            if showTrend && correctedDailyActivity.count > 7 {
+                SparklineTrend(activity: correctedDailyActivity, weekOverWeek: weekOverWeek)
+            }
+
+            if showAllTime {
+                Divider()
+                SectionHeader(icon: "chart.line.uptrend.xyaxis", title: "All Time")
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        MiniStatItem(label: "Messages", value: stats.totalMessages.formattedCompact)
+                        MiniStatItem(label: "Sessions", value: "\(stats.totalSessions)")
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        MiniStatItem(label: "Since", value: stats.formattedFirstSession)
+                        MiniStatItem(label: "Longest", value: stats.longestSessionDurationFormatted)
+                    }
+                }
+            }
+
+            if showValueMeter {
+                if !showAllTime { Divider() }
+                ValueMeterRow(value: stats.estimatedValue)
+            }
+
+            if showTokenUsage {
+                Divider()
+                SectionHeader(icon: "cpu", title: "Token Usage")
+                VStack(spacing: 8) {
+                    if stats.modelDistribution.count > 1 {
+                        ModelDistributionView(distribution: stats.modelDistribution)
+                    }
+
+                    ForEach(Array(stats.modelUsage.keys.sorted()), id: \.self) { modelName in
+                        if let usage = stats.modelUsage[modelName] {
+                            ModelUsageRow(modelName: modelName, usage: usage)
+                        }
+                    }
+                }
+            }
+
+            if showMilestones {
+                let achieved = HistoryManager.shared.allAchievedMilestones
+                if !achieved.isEmpty {
+                    Divider()
+                    SectionHeader(icon: "trophy.fill", title: "Milestones")
+                    MilestonesGridView(achieved: achieved)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Streak Badge
+
+struct StreakBadge: View {
+    let streak: Int
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text("\u{1F525}")
+                .font(.system(size: 11))
+            Text("\(streak) day\(streak == 1 ? "" : "s")")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.claudePink)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color.claudePink.opacity(0.15))
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - Milestone Celebration
+
+struct MilestoneCelebration: View {
+    let milestones: [MilestoneType]
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(milestones, id: \.rawValue) { milestone in
+                HStack {
+                    Text(milestone.emoji)
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Milestone Unlocked!")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.claudePink)
+                        Text(milestone.displayName)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        onDismiss?()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.claudePink.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.claudePink.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Quick Insights Row
+
+struct QuickInsightsRow: View {
+    let streak: Int
+    let cacheRate: Int
+    let toolCalls: Int
+    let fileEdits: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            InsightChip(icon: "flame.fill", value: "\(streak)d", label: "streak")
+            Spacer()
+            InsightChip(icon: "arrow.triangle.2.circlepath", value: "\(cacheRate)%", label: "cache")
+            Spacer()
+            InsightChip(icon: "wrench.fill", value: "\(toolCalls)", label: "tools")
+            if fileEdits > 0 {
                 Spacer()
-                Text(stats.longestSessionDurationFormatted)
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                InsightChip(icon: "doc.fill", value: "\(fileEdits)", label: "edits")
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
+struct InsightChip: View {
+    let icon: String
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 8))
+                    .foregroundColor(.claudePink)
+                Text(value)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+            }
+            Text(label)
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Peak Hours View
+
+struct PeakHoursView: View {
+    let hourCounts: [String: Int]
+
+    private var maxCount: Int {
+        max(hourCounts.values.max() ?? 1, 1)
+    }
+
+    private var peakHour: Int {
+        hourCounts.compactMap { (key, value) -> (Int, Int)? in
+            guard let hour = Int(key) else { return nil }
+            return (hour, value)
+        }
+        .max(by: { $0.1 < $1.1 })?.0 ?? 0
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Vertical bar chart — one bar per hour
+            HStack(alignment: .bottom, spacing: 1) {
+                ForEach(0..<24, id: \.self) { hour in
+                    hourBar(hour: hour)
+                }
+            }
+            .frame(height: 36)
+
+            // Time labels
+            HStack {
+                Text("12a")
+                Spacer()
+                Text("6a")
+                Spacer()
+                Text("12p")
+                Spacer()
+                Text("6p")
+                Spacer()
+                Text("12a")
+            }
+            .font(.system(size: 8))
+            .foregroundColor(.secondary)
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private func hourBar(hour: Int) -> some View {
+        let count = hourCounts["\(hour)"] ?? 0
+        let fraction = maxCount > 0 ? CGFloat(count) / CGFloat(maxCount) : 0
+        let isPeak = hour == peakHour && count > 0
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(count > 0
+                    ? (isPeak ? Color.claudePink : Color.claudePink.opacity(0.5))
+                    : Color.secondary.opacity(0.1))
+                .frame(height: max(count > 0 ? fraction * 36 : 2, 2))
+        }
+    }
+}
+
+// MARK: - Cache Effectiveness View
+
+struct CacheEffectivenessView: View {
+    let analytics: CacheAnalytics
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.15))
+
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(
+                            LinearGradient(
+                                colors: [.claudePinkDark, .claudePink, .claudePinkLight],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(geo.size.width * analytics.hitRate, 4))
+                }
+            }
+            .frame(height: 10)
+
+            HStack {
+                Text("Cache hit rate")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(analytics.savingsPercentage)%")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(.claudePink)
             }
+
+            Text("Saving ~\(analytics.savingsPercentage)% on context reprocessing")
+                .font(.system(size: 9))
+                .foregroundColor(.secondary.opacity(0.7))
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Sparkline Trend (30-day)
+
+struct SparklineTrend: View {
+    let activity: [DailyActivity]
+    let weekOverWeek: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("30-day trend")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if let wow = weekOverWeek {
+                    HStack(spacing: 2) {
+                        Image(systemName: wow >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 8))
+                        Text("\(abs(Int(wow)))% w/w")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundColor(wow >= 0 ? .green : .orange)
+                }
+            }
+
+            // Sparkline
+            ActivitySparkline(
+                data: activity.map { $0.messageCount },
+                color: .claudePink
+            )
+            .frame(height: 24)
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Model Distribution View
+
+struct ModelDistributionView: View {
+    let distribution: [(name: String, tokens: Int)]
+
+    private var total: Int {
+        distribution.reduce(0) { $0 + $1.tokens }
+    }
+
+    private var colors: [Color] {
+        [.claudePink, .claudePinkLight, .claudePinkDark, .purple.opacity(0.6)]
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Mini donut chart
+            DonutChart(
+                segments: distribution.enumerated().map { (i, item) in
+                    (value: Double(item.tokens), color: colors[i % colors.count])
+                }
+            )
+            .frame(width: 50, height: 50)
+
+            // Legend
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(distribution.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(colors[index % colors.count])
+                            .frame(width: 6, height: 6)
+                        Text(shortModelName(item.name))
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(total > 0 ? "\(Int(Double(item.tokens) / Double(total) * 100))%" : "0%")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private func shortModelName(_ name: String) -> String {
+        if name.contains("opus") { return "Opus 4.5" }
+        if name.contains("sonnet") { return "Sonnet 4" }
+        if name.contains("haiku") { return "Haiku 3.5" }
+        return name
+    }
+}
+
+// MARK: - Donut Chart
+
+struct DonutChart: View {
+    let segments: [(value: Double, color: Color)]
+
+    var body: some View {
+        ZStack {
+            ForEach(computedSegments.indices, id: \.self) { i in
+                Circle()
+                    .trim(from: computedSegments[i].start, to: computedSegments[i].end)
+                    .stroke(computedSegments[i].color, style: StrokeStyle(lineWidth: 7, lineCap: .butt))
+                    .rotationEffect(.degrees(-90))
+            }
+        }
+    }
+
+    private var computedSegments: [(start: CGFloat, end: CGFloat, color: Color)] {
+        let total = segments.reduce(0.0) { $0 + $1.value }
+        guard total > 0 else { return [] }
+
+        var result: [(start: CGFloat, end: CGFloat, color: Color)] = []
+        var current: CGFloat = 0
+
+        for segment in segments {
+            let proportion = CGFloat(segment.value / total)
+            let gap: CGFloat = segments.count > 1 ? 0.005 : 0
+            result.append((start: current + gap, end: current + proportion - gap, color: segment.color))
+            current += proportion
+        }
+
+        return result
+    }
+}
+
+// MARK: - Value Meter Row
+
+struct ValueMeterRow: View {
+    let value: ValueMeter
+
+    var body: some View {
+        HStack {
+            Image(systemName: "dollarsign.circle.fill")
+                .font(.caption)
+                .foregroundColor(.claudePink)
+            Text("API value")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text("\u{2248}\(value.estimatedValue.formattedCurrency)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(.claudePink)
+        }
+        .padding(.vertical, 2)
+
+        Text("Estimate based on public API pricing")
+            .font(.system(size: 8))
+            .foregroundColor(.secondary.opacity(0.5))
+    }
+}
+
+// MARK: - Milestones Grid View
+
+struct MilestonesGridView: View {
+    let achieved: [(type: MilestoneType, date: String)]
+
+    private let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(achieved, id: \.type.rawValue) { item in
+                    HStack(spacing: 4) {
+                        Text(item.type.emoji)
+                            .font(.system(size: 12))
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(item.type.displayName)
+                                .font(.system(size: 9, weight: .medium))
+                            Text(item.date)
+                                .font(.system(size: 7))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            // Progress toward next milestone
+            if let next = nextMilestone {
+                HStack(spacing: 4) {
+                    Image(systemName: "target")
+                        .font(.system(size: 8))
+                        .foregroundColor(.claudePink)
+                    Text("Next: \(next.displayName)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var nextMilestone: MilestoneType? {
+        let achievedSet = Set(achieved.map { $0.type })
+        return MilestoneType.allCases.first { !achievedSet.contains($0) }
+    }
+}
+
+// MARK: - Mini Stat Item
+
+struct MiniStatItem: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption2)
+                .fontWeight(.medium)
         }
     }
 }
@@ -104,292 +624,17 @@ struct TodayCard: View {
     var seed: Int = 0
     var liveStats: LiveTodayStats?
 
-    private let vibes = [
-        // Classic vibes
-        "Brewing ideas together ☕",
-        "Your AI pair programmer 🤝",
-        "Making magic happen ✨",
-        "Code flows like poetry 🎭",
-        "Building the future 🚀",
-        "In the zone together 🎯",
-        "Crafting with care 🎨",
-        "Turning thoughts into code 💭",
-        "Your coding companion 🌟",
-        "Creating something beautiful 🌸",
+    @AppStorage("vibeCategories") private var vibeCategoriesString = "all"
 
-        // Gen Z energy
-        "It's giving productive ✨",
-        "Main character energy today 💅",
-        "Slay the code, queen 👑",
-        "No thoughts, just vibes 🧘",
-        "Absolutely unhinged (affectionate) 🫶",
-        "This is our Roman Empire 🏛️",
-        "Living our best compile 💫",
-        "The vibes are immaculate 🌊",
-        "Ate and left no crumbs 🍽️",
-        "Understood the assignment ✅",
-        "It's giving senior dev energy 💼",
-        "Core memory unlocked 🧠",
-        "Real ones know 🤫",
-        "Lowkey highkey slaying 🗡️",
-        "No cap, we're cooking 🧑‍🍳",
-        "Bussin' respectfully 🚌",
-        "That's valid 💯",
-        "We move different 🏃",
-        "Hits different at 2am 🌙",
-        "Rent free in the codebase 🏠",
-
-        // Programmer humor
-        "Works on my machine ™️",
-        "No bugs, only features 🐛",
-        "console.log('we got this') 📝",
-        "git commit -m 'vibes' 🎸",
-        "sudo make me productive 🔐",
-        "404: Procrastination not found 🔍",
-        "Segfault? Never heard of her 💅",
-        "Compiling... and thriving 🔄",
-        "Stack overflow of good vibes 📚",
-        "Merge conflict? We talk it out 🤝",
-        "The code review of champions 🏆",
-        "Bug-free and carefree 🦋",
-        "Cache invalidated, vibes validated ✓",
-        "Polymorphic excellence 🧬",
-        "O(1) lookup on happiness 📊",
-        "Memory leak? More like memory peek 👀",
-        "Production ready feelings 🚀",
-        "The refactor arc begins 📖",
-        "Clean code, clean mind 🧹",
-        "Deploying dopamine 💉",
-
-        // Wholesome affirmations
-        "You're doing amazing 💖",
-        "Progress over perfection 📈",
-        "Every expert was once a beginner 🌱",
-        "Trust the process 🙏",
-        "You've got this 💪",
-        "Small steps, big dreams 🦶",
-        "Today's struggle, tomorrow's strength 🏋️",
-        "Believe in your code 🌟",
-        "Growth happens here 🌿",
-        "Your potential is infinite ∞",
-        "Mistakes are just plot twists 📚",
-        "You belong in tech 🫂",
-        "Imposter syndrome is a liar 🎭",
-        "Celebrate the small wins 🎉",
-        "Rest is productive too 😴",
-        "Your ideas matter 💡",
-        "Keep showing up 🚪",
-        "You're learning, not failing 📚",
-        "One line at a time ⌨️",
-        "The journey is the destination 🛤️",
-
-        // Chaotic/silly
-        "Feral but functional 🐺",
-        "Chaotic good energy ⚡",
-        "Unhinged and on schedule 📅",
-        "Goblin mode: activated 👺",
-        "Slightly feral, fully capable 🦝",
-        "Professional yapper 🗣️",
-        "Built different (legally) 🏗️",
-        "Cracked at code fr fr 🥚",
-        "Delulu is the solulu 🔮",
-        "This is fine 🔥🐕",
-        "Chaos coordinator 🎪",
-        "Professional overthinker 🤔",
-        "Elite napper between deploys 😴",
-        "Menace to tech debt 😈",
-        "Feral with a keyboard 🐱",
-        "Unserious but successful 🃏",
-        "Silly goose, serious code 🪿",
-        "Chaotic neutral programmer 🎲",
-        "Agent of controlled chaos 🌪️",
-        "Powered by spite and coffee ☕",
-
-        // Coffee/energy
-        "Caffeinated and motivated ☕",
-        "Running on coffee and hope 🙏",
-        "Espresso yourself 🫘",
-        "Bean there, coded that ☕",
-        "Fuel level: optimal ⛽",
-        "Energy drink era 🥤",
-        "Matcha-powered dev 🍵",
-        "Hydrated and coding 💧",
-        "Third coffee energy 🫠",
-        "Redbull and regrets 🪽",
-        "Decaf? Don't know her ☕",
-        "Liquid inspiration loading... 🫗",
-        "Brewing brilliance ☕",
-        "Stimulant-adjacent productivity 💊",
-        "Peak caffeine hours ⏰",
-
-        // AI partnership
-        "Human + AI synergy 🤖❤️",
-        "Prompting and prospering 📝",
-        "Context window: maximized 📐",
-        "Token-efficient teamwork 🪙",
-        "Vibing with the model 🎵",
-        "The machine and I agree 🤝",
-        "Neural networks, real results 🧠",
-        "LLM? More like LFG 🚀",
-        "Pair programming: evolved 🧬",
-        "We're in this together 🫂",
-        "Prompt engineer era 🔧",
-        "The algorithm and I are besties 💕",
-        "Training data who? 📊",
-        "Tokens well spent 🎰",
-        "Co-creating with AI 🎨",
-
-        // Existential/philosophical
-        "Shipping code, finding meaning 🚢",
-        "Existential crisis: postponed 📆",
-        "Debugging life one day at a time 🔍",
-        "We're all just 1s and 0s anyway 🔢",
-        "Is this the simulation? 🤔",
-        "Consciousness: still loading ⏳",
-        "We live in a society.js 🏙️",
-        "Time is a flat circle (buffer) ⭕",
-        "What if the real code was the friends we made? 👥",
-        "Existence precedes exceptions 📜",
-
-        // Seasonal/time
-        "Morning code hits different ☀️",
-        "Midnight oil: burning 🪔",
-        "Golden hour commits 🌅",
-        "Sunday scaries? Not here 📅",
-        "Friday deploy confidence 💪",
-        "Monday morning clarity 🌤️",
-        "Witching hour productivity 🧙",
-        "Post-lunch renaissance 🍝",
-        "2am breakthrough pending ⏰",
-        "Weekend warrior mode 🗡️",
-
-        // Internet culture
-        "Based and code-pilled 💊",
-        "Touch grass later, ship now 🌱",
-        "Chronically online, professionally offline 📱",
-        "This goes hard 🔥",
-        "Peak content right here 📈",
-        "Canon event in progress 📖",
-        "That's so coded of you 💅",
-        "Lore being written 📜",
-        "Era: productive 🏛️",
-        "Streaming consciousness 📺",
-        "Parasocial with my IDE 💻",
-        "The algorithm provides 🎁",
-        "Meme-powered development 🖼️",
-        "Certified hood classic 🏆",
-        "Real and true 💯",
-
-        // Food metaphors
-        "Cooking up something good 👨‍🍳",
-        "This code is bussin 🍔",
-        "Chef's kiss commits 💋",
-        "Fresh out the oven 🥖",
-        "Secret sauce: added 🥫",
-        "Marinating on this idea 🥩",
-        "Recipe for success 📝",
-        "Extra spicy feature incoming 🌶️",
-        "Comfort food coding 🍜",
-        "Gourmet git history 🍽️",
-
-        // Nature vibes
-        "Touching grass mentally 🌱",
-        "Grass is greener when you ship ☘️",
-        "Natural born debugger 🐞",
-        "Blooming where planted 🌷",
-        "Rooted in good practices 🌳",
-        "Weathering the code storm ⛈️",
-        "Sunshine on the keyboard ☀️",
-        "Calm before the deploy 🌅",
-        "Seeds of innovation 🌻",
-        "Growing every day 🌾",
-
-        // Music vibes
-        "In my coding era 🎵",
-        "The beat drops when I ship 🎧",
-        "Lo-fi beats to code to 🎹",
-        "Main stage energy 🎤",
-        "Remix the codebase 🔁",
-        "Harmony in the merge 🎼",
-        "Rhythm of the keyboard ⌨️",
-        "Coding symphony 🎻",
-        "Drop the feature like a beat 🎛️",
-        "Headphones: on. World: out 🎧",
-
-        // Self-care
-        "Ergonomic excellence 🪑",
-        "Posture check passed 🧘",
-        "Hydration nation 💧",
-        "Screen break appreciation 👁️",
-        "Snack time, best time 🍿",
-        "Stretch it out 🤸",
-        "Work-life harmony 🎭",
-        "Mental health: monitored 🧠",
-        "Boundaries: respected 🚧",
-        "Joy in the journey 🛤️",
-
-        // Confidence boosters
-        "Built for this 🏗️",
-        "Different gravy 🥄",
-        "Simply better 📈",
-        "Top tier performance 🏅",
-        "Elite mentality 🧠",
-        "Can't be stopped 🚫",
-        "Levels to this 📊",
-        "Next level unlocked 🔓",
-        "Premium vibes only 💎",
-        "S-tier coding session 🎮",
-
-        // Chill vibes
-        "Cool, calm, compiling 🧊",
-        "Easy breezy beautiful 💨",
-        "Smooth operator 🎷",
-        "Zero stress, all progress 😌",
-        "Peaceful productivity 🕊️",
-        "Tranquil typing 🪷",
-        "Mellow yellow coding 🟡",
-        "Serene scenes 🏞️",
-        "Unbothered excellence 💅",
-        "Cozy code corner 🛋️",
-
-        // Iconic quotes remixed
-        "Move fast, fix things 🔧",
-        "To code or not to code? Code. 🎭",
-        "I think, therefore I commit 🧠",
-        "Keep calm and git push 🇬🇧",
-        "Live, laugh, localhost 🏠",
-        "Hakuna matata, no blockers 🦁",
-        "To infinity and production 🚀",
-        "May the source be with you ⚔️",
-        "I came, I saw, I deployed 🏛️",
-        "Hello, is it bugs you're looking for? 🎵",
-
-        // Random delightful
-        "Pog moment incoming 😮",
-        "Wizard hours activated 🧙",
-        "Galaxy brain: online 🌌",
-        "Speedrunning productivity 🏃",
-        "Achievement unlocked 🏆",
-        "Legendary status 🐉",
-        "Epic coding montage 🎬",
-        "Final boss: this feature 👾",
-        "Side quest: completed 📋",
-        "Loading: greatness ⏳",
-        "New high score 🕹️",
-        "Combo multiplier: active ✖️",
-        "Critical hit on that bug 🎯",
-        "Power-up collected 🍄",
-        "Bonus round energy 🎰",
-        "Player two has entered 🎮",
-        "GG, moving on 🤝",
-        "No save scumming needed 💾",
-        "Tutorial completed 📖",
-        "Endgame content unlocked 🔓"
-    ]
+    private var vibes: [String] {
+        let categories = VibeMessageProvider.parseCategories(vibeCategoriesString)
+        let messages = VibeMessageProvider.messages(for: categories)
+        return messages.isEmpty ? VibeMessageProvider.allMessages : messages
+    }
 
     private var vibeIndex: Int {
-        // Use seed (refreshCount) to pick a consistent vibe until next refresh
-        abs(seed) % vibes.count
+        let count = max(vibes.count, 1)
+        return abs(seed) % count
     }
 
     var body: some View {
@@ -421,6 +666,9 @@ struct TodayCard: View {
                     TodayStat(value: "\(live.toolCallCount)", label: "tools")
                 }
 
+                // Session timer + token summary
+                SessionTimerRow(liveStats: live, stats: stats)
+
                 Text(vibes[vibeIndex])
                     .font(.caption2)
                     .italic()
@@ -442,10 +690,12 @@ struct TodayCard: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             } else {
-                // No activity yet today
-                Text("No activity yet today")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // No data loaded yet — show zeroes instead of blank
+                HStack(spacing: 12) {
+                    TodayStat(value: "0", label: "msgs")
+                    TodayStat(value: "0", label: "sessions")
+                    TodayStat(value: "0", label: "tools")
+                }
 
                 Text(vibes[vibeIndex])
                     .font(.caption2)
@@ -459,6 +709,82 @@ struct TodayCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.claudePink.opacity(0.1))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - Session Timer Row
+
+struct SessionTimerRow: View {
+    let liveStats: LiveTodayStats
+    let stats: UsageStats
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let earliest = liveStats.earliestTimestamp {
+                // Live session timer using TimelineView
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    let elapsed = context.date.timeIntervalSince(earliest)
+                    HStack(spacing: 3) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 9))
+                            .foregroundColor(.claudePink)
+                        Text(formatDuration(elapsed))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(.claudePink)
+                    }
+                }
+            }
+
+            if liveStats.earliestTimestamp != nil {
+                Text("\u{00B7}")
+                    .foregroundColor(.secondary)
+            }
+
+            // Token count for today (from cached stats)
+            if let today = stats.todayActivity {
+                let todayTokens = stats.dailyModelTokens
+                    .filter { $0.date == today.date }
+                    .flatMap { $0.tokensByModel.values }
+                    .reduce(0, +)
+                if todayTokens > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "number")
+                            .font(.system(size: 8))
+                            .foregroundColor(.secondary)
+                        Text("\(todayTokens.formattedCompact) tokens")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            // Deep work indicator (45+ min)
+            if let earliest = liveStats.earliestTimestamp {
+                let elapsed = Date().timeIntervalSince(earliest)
+                if elapsed >= 2700 { // 45 min
+                    HStack(spacing: 2) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 8))
+                            .foregroundColor(.green)
+                        Text("Deep")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(max(seconds, 0))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+
+        if hours > 0 {
+            return String(format: "%dh %02dm %02ds", hours, minutes, secs)
+        }
+        return String(format: "%dm %02ds", minutes, secs)
     }
 }
 
@@ -492,7 +818,7 @@ struct RecentActivityChart: View {
                             isToday: day.isToday
                         )
 
-                        Text(day.messageCount > 0 ? day.messageCount.formattedCompact : (day.isFuture ? "–" : "0"))
+                        Text(day.messageCount > 0 ? day.messageCount.formattedCompact : (day.isFuture ? "\u{2013}" : "0"))
                             .font(.system(size: 9, weight: .medium))
                             .foregroundColor(day.isFuture ? .secondary.opacity(0.3) : (day.isToday ? .claudePink : .secondary))
 
@@ -795,7 +1121,7 @@ struct ActivitySparkline: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let maxValue = data.max() ?? 1
+            let maxValue = max(data.max() ?? 1, 1)
             let stepWidth = geometry.size.width / CGFloat(max(data.count - 1, 1))
 
             Path { path in
@@ -862,7 +1188,7 @@ struct ErrorView: View {
                 Text("No Claude Code stats found yet.")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text("Use Claude Code to start tracking your vibes ✨")
+                Text("Use Claude Code to start tracking your vibes \u{2728}")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -916,7 +1242,7 @@ struct FooterView: View {
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        return "v\(version) (Alpha)"
+        return "v\(version)"
     }
 
     var body: some View {
@@ -931,7 +1257,7 @@ struct FooterView: View {
                     HStack(spacing: 0) {
                         Link("Drew", destination: URL(string: "https://drewmatthews.ca")!)
                             .foregroundColor(.claudePink)
-                        Text(" made this with Claude Code ✨")
+                        Text(" made this with Claude Code \u{2728}")
                             .foregroundColor(.secondary)
                     }
                     .font(.caption2)
@@ -951,6 +1277,14 @@ struct FooterView: View {
                     showAbout.toggle()
                 } label: {
                     Image(systemName: showAbout ? "info.circle.fill" : "info.circle")
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(.secondary)
+
+                Button {
+                    PreferencesWindowController.shared.showWindow()
+                } label: {
+                    Image(systemName: "gearshape")
                 }
                 .buttonStyle(.borderless)
                 .foregroundColor(.secondary)

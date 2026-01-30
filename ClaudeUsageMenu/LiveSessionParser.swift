@@ -45,10 +45,34 @@ enum SessionContent: Codable {
             return items.filter { $0.type == "tool_use" }.count
         }
     }
+
+    var fileEditCount: Int {
+        switch self {
+        case .string:
+            return 0
+        case .array(let items):
+            return items.filter { item in
+                guard item.type == "tool_use", let name = item.name else { return false }
+                let lower = name.lowercased()
+                return lower.contains("write") || lower.contains("edit") || lower.contains("create")
+            }.count
+        }
+    }
 }
 
 struct ContentItem: Codable {
     let type: String?
+    let name: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type, name
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+    }
 }
 
 // MARK: - Live Stats
@@ -57,7 +81,10 @@ struct LiveTodayStats {
     var messageCount: Int = 0
     var sessionCount: Int = 0
     var toolCallCount: Int = 0
+    var fileEditCount: Int = 0
     var sessionIds: Set<String> = []
+    var earliestTimestamp: Date? = nil
+    var latestTimestamp: Date? = nil
 }
 
 // MARK: - Live Session Parser
@@ -112,10 +139,22 @@ class LiveSessionParser {
             do {
                 let entry = try decoder.decode(SessionEntry.self, from: lineData)
 
-                // Check if this entry is from today
+                // Check if this entry is from today (convert UTC timestamp to local date)
                 guard let timestamp = entry.timestamp,
-                      timestamp.hasPrefix(today) else {
+                      let date = dateFormatter.date(from: timestamp) else {
                     continue
+                }
+                let localDateString = todayFormatter.string(from: date)
+                guard localDateString == today else {
+                    continue
+                }
+
+                // Track timestamps for session timing
+                if stats.earliestTimestamp == nil || date < stats.earliestTimestamp! {
+                    stats.earliestTimestamp = date
+                }
+                if stats.latestTimestamp == nil || date > stats.latestTimestamp! {
+                    stats.latestTimestamp = date
                 }
 
                 // Count user messages
@@ -127,11 +166,12 @@ class LiveSessionParser {
                     }
                 }
 
-                // Count tool calls from assistant messages
+                // Count tool calls and file edits from assistant messages
                 if entry.type == "assistant",
                    let message = entry.message,
                    let content = message.content {
                     stats.toolCallCount += content.toolCallCount
+                    stats.fileEditCount += content.fileEditCount
                 }
 
             } catch {
@@ -143,26 +183,32 @@ class LiveSessionParser {
 
     // Get list of active session files (modified today)
     func getActiveSessionFiles() -> [String] {
-        var files: [String] = []
-        let fileManager = FileManager.default
-        let today = Calendar.current.startOfDay(for: Date())
+        // Use shell command for reliable file enumeration (avoids FileManager issues)
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/find")
+        task.arguments = [projectsPath, "-name", "*.jsonl", "-mtime", "-1", "-type", "f"]
 
-        guard let enumerator = fileManager.enumerator(atPath: projectsPath) else {
-            return files
-        }
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
 
-        while let file = enumerator.nextObject() as? String {
-            if file.hasSuffix(".jsonl") {
-                let fullPath = (projectsPath as NSString).appendingPathComponent(file)
+        do {
+            try task.run()
+            task.waitUntilExit()
 
-                if let attrs = try? fileManager.attributesOfItem(atPath: fullPath),
-                   let modDate = attrs[.modificationDate] as? Date,
-                   modDate >= today {
-                    files.append(fullPath)
-                }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else {
+                print("[Parser] ERROR: Could not decode find output")
+                return []
             }
-        }
 
-        return files
+            let files = output.components(separatedBy: .newlines)
+                .filter { !$0.isEmpty }
+
+            return files
+        } catch {
+            print("[Parser] ERROR: find command failed: \(error.localizedDescription)")
+            return []
+        }
     }
 }

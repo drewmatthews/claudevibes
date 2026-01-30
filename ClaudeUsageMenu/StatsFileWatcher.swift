@@ -16,7 +16,7 @@ class StatsFileWatcher {
 
         fileDescriptor = open(path, O_EVTONLY)
         guard fileDescriptor >= 0 else {
-            print("Failed to open file for watching: \(path)")
+            // Silently ignore - file may have been deleted (common for subagent files)
             return
         }
 
