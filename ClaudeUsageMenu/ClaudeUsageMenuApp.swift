@@ -36,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statsManager = StatsManager()
 
         // Get output path from arguments (--output /path/to/file.png)
-        var outputPath = "/tmp/claudevibes_screenshot.png"
+        var outputPath = "/tmp/lou_screenshot.png"
         if let outputIndex = CommandLine.arguments.firstIndex(of: "--output"),
            outputIndex + 1 < CommandLine.arguments.count {
             outputPath = CommandLine.arguments[outputIndex + 1]
@@ -52,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "ClaudeVibes Screenshot"
+        window.title = "Lou Screenshot"
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
@@ -105,7 +105,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("SCREENSHOT_SAVED:\(path)")
 
             // Write path to temp file for script
-            try path.write(toFile: "/tmp/claudevibes_screenshot_path", atomically: true, encoding: .utf8)
+            try path.write(toFile: "/tmp/lou_screenshot_path", atomically: true, encoding: .utf8)
         } catch {
             print("ERROR: Could not save screenshot: \(error)")
         }

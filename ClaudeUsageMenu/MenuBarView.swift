@@ -80,7 +80,7 @@ struct StatsContentView: View {
             HStack {
                 Image(systemName: "sparkles")
                     .foregroundColor(.appPrimary)
-                Text("ClaudeVibes")
+                Text("Lou")
                     .font(.headline)
                     .foregroundColor(.appPrimary)
                 Spacer()
@@ -1926,7 +1926,7 @@ struct ErrorView: View {
                 Image(systemName: "sparkles")
                     .font(.title2)
                     .foregroundColor(.appPrimary)
-                Text("Welcome to ClaudeVibes!")
+                Text("Welcome to Lou!")
                     .font(.headline)
                 Text("No Claude Code stats found yet.")
                     .font(.caption)
@@ -1944,7 +1944,7 @@ struct ErrorView: View {
                 Text("Claude Code's stats format may have updated.")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text("Check for a ClaudeVibes update, or try refreshing.")
+                Text("Check for a Lou update, or try refreshing.")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -1993,7 +1993,7 @@ struct FooterView: View {
             // About section above
             if showAbout {
                 VStack(spacing: 4) {
-                    Link("ClaudeVibes \(appVersion)", destination: URL(string: "http://claudevibes.drewmatthews.ca")!)
+                    Link("Lou \(appVersion)", destination: URL(string: "http://lou.drewmatthews.ca")!)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)

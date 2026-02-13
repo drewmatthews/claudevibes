@@ -23,7 +23,7 @@ class PreferencesWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "ClaudeVibes Preferences"
+        window.title = "Lou Preferences"
         window.contentView = hostingView
         window.center()
         window.isReleasedWhenClosed = false

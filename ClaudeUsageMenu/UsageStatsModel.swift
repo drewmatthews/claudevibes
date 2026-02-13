@@ -2,7 +2,7 @@ import Foundation
 import os.log
 import UserNotifications
 
-private let logger = Logger(subsystem: "com.claudevibes", category: "stats")
+private let logger = Logger(subsystem: "com.lou", category: "stats")
 
 // MARK: - Main Stats Model
 
@@ -138,6 +138,21 @@ enum MilestoneType: String, Codable, CaseIterable {
         case .tokens1M: return "circlebadge.fill"
         case .tokens10M: return "circlebadge.2.fill"
         case .tokens100M: return "crown.fill"
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .messages1K: return "1K"
+        case .messages10K: return "10K"
+        case .messages100K: return "100K"
+        case .sessions100: return "100"
+        case .sessions1K: return "1K"
+        case .streak7: return "7d"
+        case .streak30: return "30d"
+        case .tokens1M: return "1M"
+        case .tokens10M: return "10M"
+        case .tokens100M: return "100M"
         }
     }
 
@@ -477,7 +492,7 @@ class HistoryManager {
     private init() {
         // Setup app support directory
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appDir = appSupport.appendingPathComponent("ClaudeVibes", isDirectory: true)
+        let appDir = appSupport.appendingPathComponent("Lou", isDirectory: true)
 
         // Create directory if needed
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
@@ -772,7 +787,7 @@ class StatsManager: ObservableObject {
 
                     // Check for empty file
                     if data.isEmpty {
-                        throw NSError(domain: "ClaudeVibes", code: 1, userInfo: [NSLocalizedDescriptionKey: "Stats file is empty"])
+                        throw NSError(domain: "Lou", code: 1, userInfo: [NSLocalizedDescriptionKey: "Stats file is empty"])
                     }
 
                     let decoder = JSONDecoder()
@@ -863,7 +878,7 @@ class StatsManager: ObservableObject {
             if notificationsEnabled {
                 for milestone in achievedMilestones {
                     let content = UNMutableNotificationContent()
-                    content.title = "ClaudeVibes Milestone! \(milestone.emoji)"
+                    content.title = "Lou Milestone! \(milestone.emoji)"
                     content.body = "You've achieved: \(milestone.displayName)"
                     content.sound = .default
 
