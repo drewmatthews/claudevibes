@@ -94,7 +94,7 @@ struct TabButton: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.claudePink.opacity(0.8) : Color.clear)
+                    .fill(isSelected ? Color.appPrimary.opacity(0.8) : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -193,7 +193,7 @@ struct ThemePreviewThumbnail: View {
 // MARK: - General Tab
 
 struct GeneralTabContent: View {
-    @AppStorage("selectedTheme") private var selectedTheme = ThemePreset.claudePink.rawValue
+    @AppStorage("selectedTheme") private var selectedTheme = ThemePreset.rosePink.rawValue
     @AppStorage("vibeCategories") private var vibeCategoriesString = "all"
     @AppStorage("notifications_milestones") private var notifyMilestones = true
 

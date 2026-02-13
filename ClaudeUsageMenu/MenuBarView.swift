@@ -4,18 +4,18 @@ import SwiftUI
 
 extension Color {
     private static var currentTheme: ThemePreset {
-        let rawValue = UserDefaults.standard.string(forKey: "selectedTheme") ?? ThemePreset.claudePink.rawValue
-        return ThemePreset(rawValue: rawValue) ?? .claudePink
+        let rawValue = UserDefaults.standard.string(forKey: "selectedTheme") ?? ThemePreset.rosePink.rawValue
+        return ThemePreset(rawValue: rawValue) ?? .rosePink
     }
 
-    static var claudePink: Color { currentTheme.primary }
-    static var claudePinkLight: Color { currentTheme.primaryLight }
-    static var claudePinkDark: Color { currentTheme.primaryDark }
+    static var appPrimary: Color { currentTheme.primary }
+    static var appPrimaryLight: Color { currentTheme.primaryLight }
+    static var appPrimaryDark: Color { currentTheme.primaryDark }
 }
 
 struct MenuBarView: View {
     @ObservedObject var statsManager: StatsManager
-    @AppStorage("selectedTheme") private var selectedTheme = ThemePreset.claudePink.rawValue
+    @AppStorage("selectedTheme") private var selectedTheme = ThemePreset.rosePink.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -42,7 +42,7 @@ struct MenuBarView: View {
         }
         .id(selectedTheme) // Force full re-render when theme changes
         .padding(12)
-        .frame(width: 300)
+        .frame(width: 440)
         .background(Color.black.opacity(0.40))
         .preferredColorScheme(.dark)
         .onAppear {
@@ -75,14 +75,14 @@ struct StatsContentView: View {
     @AppStorage("show_milestones") private var showMilestones = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             // Header with streak badge
             HStack {
                 Image(systemName: "sparkles")
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Text("ClaudeVibes")
                     .font(.headline)
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Spacer()
                 if streakData.currentStreak > 0 {
                     StreakBadge(streak: streakData.currentStreak)
@@ -96,85 +96,821 @@ struct StatsContentView: View {
 
             Divider()
 
-            // Today's Activity - always shown
-            TodayCard(stats: stats, seed: refreshCount, liveStats: liveTodayStats)
+            // === BENTO BOX LAYOUT ===
 
-            if showQuickInsights {
-                QuickInsightsRow(
-                    streak: streakData.currentStreak,
-                    cacheRate: stats.cacheAnalytics.savingsPercentage,
-                    toolCalls: liveTodayStats?.toolCallCount ?? stats.todayActivity?.toolCallCount ?? 0,
-                    fileEdits: liveTodayStats?.fileEditCount ?? 0
-                )
+            // Row 1: Today card + Quick insights side by side
+            HStack(alignment: .top, spacing: 8) {
+                TodayCard(stats: stats, seed: refreshCount, liveStats: liveTodayStats)
+
+                if showQuickInsights {
+                    QuickInsightsCard(
+                        streak: streakData.currentStreak,
+                        cacheRate: stats.cacheAnalytics.savingsPercentage,
+                        toolCalls: liveTodayStats?.toolCallCount ?? stats.todayActivity?.toolCallCount ?? 0,
+                        fileEdits: liveTodayStats?.fileEditCount ?? 0
+                    )
+                    .frame(width: 130)
+                }
             }
 
+            // Row 2: Peak Hours (full width, compact)
             if showPeakHours {
-                Divider()
-                SectionHeader(icon: "clock.fill", title: "Peak Hours")
-                PeakHoursView(hourCounts: stats.hourCounts)
+                PeakHoursCompact(hourCounts: stats.hourCounts)
             }
 
-            if showEfficiency {
-                Divider()
-                SectionHeader(icon: "gauge.with.dots.needle.33percent", title: "Efficiency")
-                CacheEffectivenessView(analytics: stats.cacheAnalytics)
+            // Row 3: Activity + Trend side by side
+            HStack(alignment: .top, spacing: 8) {
+                if showActivity {
+                    ActivityChartCompact(dailyActivity: correctedDailyActivity, liveTodayStats: liveTodayStats)
+                        .frame(maxWidth: .infinity)
+                }
+
+                if showTrend && correctedDailyActivity.count > 7 {
+                    TrendCard(activity: correctedDailyActivity, weekOverWeek: weekOverWeek)
+                        .frame(width: 140)
+                }
             }
 
-            if showActivity {
-                Divider()
-                SectionHeader(icon: "calendar.badge.clock", title: "Activity")
-                RecentActivityChart(dailyActivity: correctedDailyActivity, liveTodayStats: liveTodayStats)
+            // Row 4: Cache + Value side by side
+            HStack(alignment: .top, spacing: 8) {
+                if showEfficiency {
+                    CacheCard(analytics: stats.cacheAnalytics)
+                        .frame(maxWidth: .infinity)
+                }
+
+                if showValueMeter {
+                    ValueCard(value: stats.estimatedValue)
+                        .frame(maxWidth: .infinity)
+                }
             }
 
-            if showTrend && correctedDailyActivity.count > 7 {
-                SparklineTrend(activity: correctedDailyActivity, weekOverWeek: weekOverWeek)
-            }
-
+            // Row 5: All Time stats (compact bar)
             if showAllTime {
-                Divider()
-                SectionHeader(icon: "chart.line.uptrend.xyaxis", title: "All Time")
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        MiniStatItem(label: "Messages", value: stats.totalMessages.formattedCompact)
-                        MiniStatItem(label: "Sessions", value: "\(stats.totalSessions)")
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        MiniStatItem(label: "Since", value: stats.formattedFirstSession)
-                        MiniStatItem(label: "Longest", value: stats.longestSessionDurationFormatted)
+                AllTimeBar(stats: stats)
+            }
+
+            // Row 6: Token Usage (collapsible)
+            if showTokenUsage {
+                TokenUsageCompact(modelUsage: stats.modelUsage, distribution: stats.modelDistribution)
+            }
+
+            // Row 7: Milestones (compact)
+            if showMilestones {
+                let achieved = HistoryManager.shared.allAchievedMilestones
+                if !achieved.isEmpty {
+                    MilestonesBar(achieved: achieved)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Bento Box Components
+
+struct TodayCardCompact: View {
+    let stats: UsageStats
+    var seed: Int = 0
+    var liveStats: LiveTodayStats?
+
+    @AppStorage("vibeCategories") private var vibeCategoriesString = "all"
+
+    private var vibes: [String] {
+        let categories = VibeMessageProvider.parseCategories(vibeCategoriesString)
+        let messages = VibeMessageProvider.messages(for: categories)
+        return messages.isEmpty ? VibeMessageProvider.allMessages : messages
+    }
+
+    private var vibeIndex: Int {
+        let count = max(vibes.count, 1)
+        return abs(seed) % count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "sun.max.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.appPrimary)
+                Text("Today")
+                    .font(.system(size: 11, weight: .semibold))
+                Spacer()
+                if let live = liveStats, live.messageCount > 0 {
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 5, height: 5)
+                        Text("Live")
+                            .font(.system(size: 8))
+                            .foregroundColor(.secondary)
                     }
                 }
             }
 
-            if showValueMeter {
-                if !showAllTime { Divider() }
-                ValueMeterRow(value: stats.estimatedValue)
-            }
+            if let live = liveStats, live.messageCount > 0 {
+                HStack {
+                    CompactStat(value: "\(live.messageCount)", label: "msgs")
+                    Spacer()
+                    CompactStat(value: "\(live.sessionCount)", label: "sess")
+                    Spacer()
+                    CompactStat(value: "\(live.toolCallCount)", label: "tools")
+                }
 
-            if showTokenUsage {
-                Divider()
-                SectionHeader(icon: "cpu", title: "Token Usage")
-                VStack(spacing: 8) {
-                    if stats.modelDistribution.count > 1 {
-                        ModelDistributionView(distribution: stats.modelDistribution)
+                // Session timer row
+                HStack(spacing: 6) {
+                    if let earliest = live.earliestTimestamp {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let elapsed = context.date.timeIntervalSince(earliest)
+                            HStack(spacing: 2) {
+                                Image(systemName: "timer")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.appPrimary)
+                                Text(formatDuration(elapsed))
+                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                    .foregroundColor(.appPrimary)
+                            }
+                        }
                     }
 
-                    ForEach(Array(stats.modelUsage.keys.sorted()), id: \.self) { modelName in
-                        if let usage = stats.modelUsage[modelName] {
-                            ModelUsageRow(modelName: modelName, usage: usage)
+                    if live.totalTokens > 0 {
+                        Text("\u{00B7}")
+                            .font(.system(size: 8))
+                            .foregroundColor(.secondary)
+                        Text("\(live.totalTokens.formattedCompact) tok")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Text(vibes[vibeIndex])
+                    .font(.system(size: 9))
+                    .italic()
+                    .foregroundColor(.appPrimary.opacity(0.8))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let today = stats.todayActivity {
+                HStack {
+                    CompactStat(value: "\(today.messageCount)", label: "msgs")
+                    Spacer()
+                    CompactStat(value: "\(today.sessionCount)", label: "sess")
+                    Spacer()
+                    CompactStat(value: "\(today.toolCallCount)", label: "tools")
+                }
+
+                Text(vibes[vibeIndex])
+                    .font(.system(size: 9))
+                    .italic()
+                    .foregroundColor(.appPrimary.opacity(0.8))
+                    .lineLimit(2)
+            } else {
+                HStack {
+                    CompactStat(value: "0", label: "msgs")
+                    Spacer()
+                    CompactStat(value: "0", label: "sess")
+                    Spacer()
+                    CompactStat(value: "0", label: "tools")
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.appPrimary.opacity(0.1))
+        .cornerRadius(8)
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(max(seconds, 0))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+struct CompactStat: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(.appPrimary)
+            Text(label)
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+struct QuickInsightsCard: View {
+    let streak: Int
+    let cacheRate: Int
+    let toolCalls: Int
+    let fileEdits: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Quick Stats")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 4) {
+                QuickStatRow(icon: "flame.fill", value: "\(streak)d", label: "streak", color: .orange)
+                QuickStatRow(icon: "arrow.triangle.2.circlepath", value: "\(cacheRate)%", label: "cache", color: .appPrimary)
+                QuickStatRow(icon: "wrench.fill", value: "\(toolCalls)", label: "tools", color: .appPrimary)
+                if fileEdits > 0 {
+                    QuickStatRow(icon: "doc.fill", value: "\(fileEdits)", label: "edits", color: .appPrimary)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+struct QuickStatRow: View {
+    let icon: String
+    let value: String
+    let label: String
+    var color: Color = .appPrimary
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9))
+                .foregroundColor(color)
+                .frame(width: 12)
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+            Spacer()
+            Text(label)
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+struct PeakHoursCompact: View {
+    let hourCounts: [String: Int]
+
+    private var maxCount: Int {
+        max(hourCounts.values.max() ?? 1, 1)
+    }
+
+    private var peakHour: Int {
+        hourCounts.compactMap { (key, value) -> (Int, Int)? in
+            guard let hour = Int(key) else { return nil }
+            return (hour, value)
+        }
+        .max(by: { $0.1 < $1.1 })?.0 ?? 0
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(.appPrimary)
+                Text("Peak Hours")
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer()
+                Text(peakHourLabel)
+                    .font(.system(size: 9))
+                    .foregroundColor(.appPrimary)
+            }
+
+            HStack(alignment: .bottom, spacing: 1) {
+                ForEach(0..<24, id: \.self) { hour in
+                    hourBar(hour: hour)
+                }
+            }
+            .frame(height: 28)
+
+            HStack {
+                Text("12a")
+                Spacer()
+                Text("6a")
+                Spacer()
+                Text("12p")
+                Spacer()
+                Text("6p")
+                Spacer()
+                Text("12a")
+            }
+            .font(.system(size: 7))
+            .foregroundColor(.secondary)
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var peakHourLabel: String {
+        let hour = peakHour
+        if hour == 0 { return "12am" }
+        if hour < 12 { return "\(hour)am" }
+        if hour == 12 { return "12pm" }
+        return "\(hour - 12)pm"
+    }
+
+    private func hourBar(hour: Int) -> some View {
+        let count = hourCounts["\(hour)"] ?? 0
+        let fraction = maxCount > 0 ? CGFloat(count) / CGFloat(maxCount) : 0
+        let isPeak = hour == peakHour && count > 0
+
+        return VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            RoundedRectangle(cornerRadius: 1)
+                .fill(count > 0
+                    ? (isPeak ? Color.appPrimary : Color.appPrimary.opacity(0.5))
+                    : Color.secondary.opacity(0.1))
+                .frame(height: max(count > 0 ? fraction * 28 : 2, 2))
+        }
+    }
+}
+
+struct ActivityChartCompact: View {
+    let dailyActivity: [DailyActivity]
+    var liveTodayStats: LiveTodayStats?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 9))
+                    .foregroundColor(.appPrimary)
+                Text("7-Day Activity")
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer()
+                Text("\(totalMessages.formattedCompact) msgs")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+            }
+
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(rolling7Days, id: \.date) { day in
+                    VStack(spacing: 2) {
+                        ActivityBarCompact(
+                            value: day.messageCount,
+                            maxValue: maxMessages,
+                            isFuture: day.isFuture,
+                            isToday: day.isToday
+                        )
+
+                        Text(day.dayLabel)
+                            .font(.system(size: 8))
+                            .foregroundColor(day.isFuture ? .secondary.opacity(0.3) : (day.isToday ? .appPrimary : .secondary))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 50)
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var totalMessages: Int {
+        rolling7Days.filter { !$0.isFuture }.reduce(0) { $0 + $1.messageCount }
+    }
+
+    private var rolling7Days: [DayData] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        var dataByDate: [String: Int] = [:]
+        for activity in dailyActivity {
+            dataByDate[activity.date] = activity.messageCount
+        }
+
+        var days: [DayData] = []
+        for offset in -5...1 {
+            if let date = calendar.date(byAdding: .day, value: offset, to: today) {
+                let dateString = formatter.string(from: date)
+                let dayOfMonth = calendar.component(.day, from: date)
+                let isFuture = offset > 0
+                let isToday = offset == 0
+
+                let messageCount: Int
+                if isToday, let live = liveTodayStats, live.messageCount > 0 {
+                    messageCount = live.messageCount
+                } else {
+                    messageCount = dataByDate[dateString] ?? 0
+                }
+
+                days.append(DayData(
+                    date: dateString,
+                    dayLabel: "\(dayOfMonth)",
+                    messageCount: messageCount,
+                    isFuture: isFuture,
+                    isToday: isToday
+                ))
+            }
+        }
+        return days
+    }
+
+    private var maxMessages: Int {
+        max(rolling7Days.filter { !$0.isFuture }.map { $0.messageCount }.max() ?? 1, 1)
+    }
+}
+
+struct ActivityBarCompact: View {
+    let value: Int
+    let maxValue: Int
+    var isFuture: Bool = false
+    var isToday: Bool = false
+
+    var body: some View {
+        VStack {
+            Spacer(minLength: 0)
+            RoundedRectangle(cornerRadius: 3)
+                .fill(barColor)
+                .frame(height: barHeight)
+
+            if !isFuture && value > 0 {
+                Text(value.formattedCompact)
+                    .font(.system(size: 7, weight: .medium))
+                    .foregroundColor(isToday ? .appPrimary : .secondary)
+            } else {
+                Text(isFuture ? "-" : "0")
+                    .font(.system(size: 7))
+                    .foregroundColor(.secondary.opacity(0.3))
+            }
+        }
+    }
+
+    private var barColor: Color {
+        if isFuture { return Color.secondary.opacity(0.15) }
+        if isToday { return Color.appPrimary }
+        if value > 0 { return Color.appPrimaryLight }
+        return Color.secondary.opacity(0.15)
+    }
+
+    private var barHeight: CGFloat {
+        if isFuture { return 6 }
+        let minH: CGFloat = 6
+        let maxH: CGFloat = 28
+        guard maxValue > 0, value > 0 else { return minH }
+        return max(CGFloat(value) / CGFloat(maxValue) * maxH, minH)
+    }
+}
+
+struct TrendCard: View {
+    let activity: [DailyActivity]
+    let weekOverWeek: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("30-Day")
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer()
+                if let wow = weekOverWeek {
+                    HStack(spacing: 2) {
+                        Image(systemName: wow >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 8))
+                        Text("\(abs(Int(wow)))%")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundColor(wow >= 0 ? .green : .orange)
+                }
+            }
+
+            ActivitySparkline(
+                data: activity.map { $0.messageCount },
+                color: .appPrimary
+            )
+            .frame(height: 32)
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+struct CacheCard: View {
+    let analytics: CacheAnalytics
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "gauge.with.dots.needle.33percent")
+                    .font(.system(size: 9))
+                    .foregroundColor(.appPrimary)
+                Text("Cache")
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer()
+                Text("\(analytics.savingsPercentage)%")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(.appPrimary)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.secondary.opacity(0.15))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(LinearGradient(
+                            colors: [.appPrimaryDark, .appPrimary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ))
+                        .frame(width: max(geo.size.width * analytics.hitRate, 4))
+                }
+            }
+            .frame(height: 8)
+
+            Text("Saving on reprocessing")
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+struct ValueCard: View {
+    let value: ValueMeter
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(.appPrimary)
+                Text("Value")
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer()
+            }
+
+            Text("\u{2248}\(value.estimatedValue.formattedCurrency)")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(.appPrimary)
+
+            Text("API pricing estimate")
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+struct AllTimeBar: View {
+    let stats: UsageStats
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.system(size: 9))
+                .foregroundColor(.appPrimary)
+
+            HStack(spacing: 16) {
+                AllTimeStat(label: "Messages", value: stats.totalMessages.formattedCompact)
+                AllTimeStat(label: "Sessions", value: "\(stats.totalSessions)")
+                AllTimeStat(label: "Since", value: stats.formattedFirstSession)
+                AllTimeStat(label: "Longest", value: stats.longestSessionDurationFormatted)
+            }
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
+struct AllTimeStat: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.system(size: 10, weight: .semibold))
+            Text(label)
+                .font(.system(size: 7))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+struct TokenUsageCompact: View {
+    let modelUsage: [String: ModelUsage]
+    let distribution: [(name: String, tokens: Int)]
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 9))
+                        .foregroundColor(.appPrimary)
+                    Text("Token Usage")
+                        .font(.system(size: 10, weight: .semibold))
+                    Spacer()
+                    Text(totalTokens.formattedCompact)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 6) {
+                    if distribution.count > 1 {
+                        ModelDistributionCompact(distribution: distribution)
+                    }
+
+                    ForEach(Array(modelUsage.keys.sorted()), id: \.self) { modelName in
+                        if let usage = modelUsage[modelName] {
+                            ModelUsageCompact(modelName: modelName, usage: usage)
                         }
                     }
                 }
             }
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
 
-            if showMilestones {
-                let achieved = HistoryManager.shared.allAchievedMilestones
-                if !achieved.isEmpty {
-                    Divider()
-                    SectionHeader(icon: "trophy.fill", title: "Milestones")
-                    MilestonesGridView(achieved: achieved)
+    private var totalTokens: Int {
+        modelUsage.values.reduce(0) { $0 + $1.totalTokens }
+    }
+}
+
+struct ModelDistributionCompact: View {
+    let distribution: [(name: String, tokens: Int)]
+
+    private var total: Int {
+        distribution.reduce(0) { $0 + $1.tokens }
+    }
+
+    private var colors: [Color] {
+        [.appPrimary, .appPrimaryLight, .appPrimaryDark, .purple.opacity(0.6)]
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            DonutChart(
+                segments: distribution.enumerated().map { (i, item) in
+                    (value: Double(item.tokens), color: colors[i % colors.count])
+                }
+            )
+            .frame(width: 36, height: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(distribution.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(colors[index % colors.count])
+                            .frame(width: 5, height: 5)
+                        Text(shortModelName(item.name))
+                            .font(.system(size: 8))
+                            .foregroundColor(.secondary)
+                        Text(total > 0 ? "\(Int(Double(item.tokens) / Double(total) * 100))%" : "0%")
+                            .font(.system(size: 8, weight: .medium))
+                    }
                 }
             }
         }
+    }
+
+    private func shortModelName(_ name: String) -> String {
+        if name.contains("opus") { return "Opus 4.5" }
+        if name.contains("sonnet") { return "Sonnet 4" }
+        if name.contains("haiku") { return "Haiku 3.5" }
+        return name
+    }
+}
+
+struct ModelUsageCompact: View {
+    let modelName: String
+    let usage: ModelUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(shortModelName)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.appPrimary)
+                Spacer()
+                Text(usage.totalTokens.formattedCompact)
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
+
+            TokenStackedBar(usage: usage)
+                .clipped()
+
+            HStack(spacing: 0) {
+                TokenLegendCompact(color: .appPrimary, label: "In", value: usage.inputTokens)
+                Spacer()
+                TokenLegendCompact(color: .appPrimaryLight, label: "Out", value: usage.outputTokens)
+                Spacer()
+                TokenLegendCompact(color: .appPrimaryDark, label: "Cache", value: usage.cacheReadInputTokens)
+            }
+        }
+        .padding(8)
+        .background(Color.black.opacity(0.2))
+        .cornerRadius(6)
+    }
+
+    private var shortModelName: String {
+        if modelName.contains("opus") { return "Opus 4.5" }
+        if modelName.contains("sonnet") { return "Sonnet 4" }
+        if modelName.contains("haiku") { return "Haiku 3.5" }
+        return modelName
+    }
+}
+
+struct TokenLegendCompact: View {
+    let color: Color
+    let label: String
+    let value: Int
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Circle()
+                .fill(color)
+                .frame(width: 4, height: 4)
+            Text(label)
+                .font(.system(size: 7))
+                .foregroundColor(.secondary)
+            Text(value.formattedCompact)
+                .font(.system(size: 7, weight: .medium))
+        }
+    }
+}
+
+struct MilestonesBar: View {
+    let achieved: [(type: MilestoneType, date: String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(.appPrimary)
+                Text("Milestones")
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer()
+            }
+
+            // Horizontal scroll of badges
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(achieved, id: \.type.rawValue) { item in
+                        HStack(spacing: 3) {
+                            Text(item.type.emoji)
+                                .font(.system(size: 10))
+                            Text(item.type.shortName)
+                                .font(.system(size: 8, weight: .medium))
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.appPrimary.opacity(0.15))
+                        .cornerRadius(4)
+                    }
+                }
+            }
+
+            if let next = nextMilestone {
+                HStack(spacing: 3) {
+                    Image(systemName: "target")
+                        .font(.system(size: 7))
+                        .foregroundColor(.appPrimary)
+                    Text("Next: \(next.shortName)")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(8)
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var nextMilestone: MilestoneType? {
+        let achievedSet = Set(achieved.map { $0.type })
+        return MilestoneType.allCases.first { !achievedSet.contains($0) }
     }
 }
 
@@ -189,11 +925,11 @@ struct StreakBadge: View {
                 .font(.system(size: 11))
             Text("\(streak) day\(streak == 1 ? "" : "s")")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.claudePink)
+                .foregroundColor(.appPrimary)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(Color.claudePink.opacity(0.15))
+        .background(Color.appPrimary.opacity(0.15))
         .cornerRadius(10)
     }
 }
@@ -213,7 +949,7 @@ struct MilestoneCelebration: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Milestone Unlocked!")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.claudePink)
+                            .foregroundColor(.appPrimary)
                         Text(milestone.displayName)
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -233,10 +969,10 @@ struct MilestoneCelebration: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.claudePink.opacity(0.1))
+                .fill(Color.appPrimary.opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.claudePink.opacity(0.3), lineWidth: 1)
+                        .stroke(Color.appPrimary.opacity(0.3), lineWidth: 1)
                 )
         )
     }
@@ -276,7 +1012,7 @@ struct InsightChip: View {
             HStack(spacing: 3) {
                 Image(systemName: icon)
                     .font(.system(size: 8))
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Text(value)
                     .font(.system(size: 10, weight: .bold, design: .rounded))
             }
@@ -343,7 +1079,7 @@ struct PeakHoursView: View {
             Spacer(minLength: 0)
             RoundedRectangle(cornerRadius: 1.5)
                 .fill(count > 0
-                    ? (isPeak ? Color.claudePink : Color.claudePink.opacity(0.5))
+                    ? (isPeak ? Color.appPrimary : Color.appPrimary.opacity(0.5))
                     : Color.secondary.opacity(0.1))
                 .frame(height: max(count > 0 ? fraction * 36 : 2, 2))
         }
@@ -366,7 +1102,7 @@ struct CacheEffectivenessView: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(
                             LinearGradient(
-                                colors: [.claudePinkDark, .claudePink, .claudePinkLight],
+                                colors: [.appPrimaryDark, .appPrimary, .appPrimaryLight],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
@@ -383,7 +1119,7 @@ struct CacheEffectivenessView: View {
                 Spacer()
                 Text("\(analytics.savingsPercentage)%")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
             }
 
             Text("Saving ~\(analytics.savingsPercentage)% on context reprocessing")
@@ -423,7 +1159,7 @@ struct SparklineTrend: View {
             // Sparkline
             ActivitySparkline(
                 data: activity.map { $0.messageCount },
-                color: .claudePink
+                color: .appPrimary
             )
             .frame(height: 24)
         }
@@ -443,7 +1179,7 @@ struct ModelDistributionView: View {
     }
 
     private var colors: [Color] {
-        [.claudePink, .claudePinkLight, .claudePinkDark, .purple.opacity(0.6)]
+        [.appPrimary, .appPrimaryLight, .appPrimaryDark, .purple.opacity(0.6)]
     }
 
     var body: some View {
@@ -529,14 +1265,14 @@ struct ValueMeterRow: View {
         HStack {
             Image(systemName: "dollarsign.circle.fill")
                 .font(.caption)
-                .foregroundColor(.claudePink)
+                .foregroundColor(.appPrimary)
             Text("API value")
                 .font(.caption)
                 .foregroundColor(.secondary)
             Spacer()
             Text("\u{2248}\(value.estimatedValue.formattedCurrency)")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundColor(.claudePink)
+                .foregroundColor(.appPrimary)
         }
         .padding(.vertical, 2)
 
@@ -580,7 +1316,7 @@ struct MilestonesGridView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "target")
                         .font(.system(size: 8))
-                        .foregroundColor(.claudePink)
+                        .foregroundColor(.appPrimary)
                     Text("Next: \(next.displayName)")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
@@ -641,7 +1377,7 @@ struct TodayCard: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "sun.max.fill")
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Text("Today")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -672,7 +1408,7 @@ struct TodayCard: View {
                 Text(vibes[vibeIndex])
                     .font(.caption2)
                     .italic()
-                    .foregroundColor(.claudePink.opacity(0.8))
+                    .foregroundColor(.appPrimary.opacity(0.8))
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             } else if let today = stats.todayActivity {
@@ -686,7 +1422,7 @@ struct TodayCard: View {
                 Text(vibes[vibeIndex])
                     .font(.caption2)
                     .italic()
-                    .foregroundColor(.claudePink.opacity(0.8))
+                    .foregroundColor(.appPrimary.opacity(0.8))
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             } else {
@@ -700,14 +1436,14 @@ struct TodayCard: View {
                 Text(vibes[vibeIndex])
                     .font(.caption2)
                     .italic()
-                    .foregroundColor(.claudePink.opacity(0.8))
+                    .foregroundColor(.appPrimary.opacity(0.8))
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.claudePink.opacity(0.1))
+        .background(Color.appPrimary.opacity(0.1))
         .cornerRadius(8)
     }
 }
@@ -727,10 +1463,10 @@ struct SessionTimerRow: View {
                     HStack(spacing: 3) {
                         Image(systemName: "timer")
                             .font(.system(size: 9))
-                            .foregroundColor(.claudePink)
+                            .foregroundColor(.appPrimary)
                         Text(formatDuration(elapsed))
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundColor(.claudePink)
+                            .foregroundColor(.appPrimary)
                     }
                 }
             }
@@ -827,11 +1563,11 @@ struct RecentActivityChart: View {
 
                         Text(day.messageCount > 0 ? day.messageCount.formattedCompact : (day.isFuture ? "\u{2013}" : "0"))
                             .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(day.isFuture ? .secondary.opacity(0.3) : (day.isToday ? .claudePink : .secondary))
+                            .foregroundColor(day.isFuture ? .secondary.opacity(0.3) : (day.isToday ? .appPrimary : .secondary))
 
                         Text(day.dayLabel)
                             .font(.system(size: 9))
-                            .foregroundColor(day.isFuture ? .secondary.opacity(0.3) : (day.isToday ? .claudePink : .secondary))
+                            .foregroundColor(day.isFuture ? .secondary.opacity(0.3) : (day.isToday ? .appPrimary : .secondary))
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -924,9 +1660,9 @@ struct ActivityBar: View {
         if isFuture {
             return Color.secondary.opacity(0.15)
         } else if isToday {
-            return Color.claudePink
+            return Color.appPrimary
         } else if value > 0 {
-            return Color.claudePinkLight
+            return Color.appPrimaryLight
         } else {
             return Color.secondary.opacity(0.15)
         }
@@ -952,7 +1688,7 @@ struct TodayStat: View {
         VStack(spacing: 2) {
             Text(value)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.claudePink)
+                .foregroundColor(.appPrimary)
             Text(label)
                 .font(.system(size: 9))
                 .foregroundColor(.secondary)
@@ -971,7 +1707,7 @@ struct SectionHeader: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption)
-                .foregroundColor(.claudePink)
+                .foregroundColor(.appPrimary)
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
@@ -1007,7 +1743,7 @@ struct ModelUsageRow: View {
                 Text(shortModelName)
                     .font(.caption)
                     .fontWeight(.semibold)
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Spacer()
                 Text(usage.totalTokens.formattedCompact + " total")
                     .font(.caption2)
@@ -1020,11 +1756,11 @@ struct ModelUsageRow: View {
 
             // Legend with values
             HStack(spacing: 0) {
-                TokenLegendItem(color: .claudePink, label: "In", value: usage.inputTokens)
+                TokenLegendItem(color: .appPrimary, label: "In", value: usage.inputTokens)
                 Spacer()
-                TokenLegendItem(color: .claudePinkLight, label: "Out", value: usage.outputTokens)
+                TokenLegendItem(color: .appPrimaryLight, label: "Out", value: usage.outputTokens)
                 Spacer()
-                TokenLegendItem(color: .claudePinkDark, label: "Cache", value: usage.cacheReadInputTokens)
+                TokenLegendItem(color: .appPrimaryDark, label: "Cache", value: usage.cacheReadInputTokens)
             }
         }
         .padding(10)
@@ -1056,21 +1792,21 @@ struct TokenStackedBar: View {
                 // Input tokens
                 if usage.inputTokens > 0 {
                     Rectangle()
-                        .fill(Color.claudePink)
+                        .fill(Color.appPrimary)
                         .frame(width: segmentWidth(for: usage.inputTokens, in: geo.size.width))
                 }
 
                 // Output tokens
                 if usage.outputTokens > 0 {
                     Rectangle()
-                        .fill(Color.claudePinkLight)
+                        .fill(Color.appPrimaryLight)
                         .frame(width: segmentWidth(for: usage.outputTokens, in: geo.size.width))
                 }
 
                 // Cache tokens
                 if usage.cacheReadInputTokens > 0 {
                     Rectangle()
-                        .fill(Color.claudePinkDark)
+                        .fill(Color.appPrimaryDark)
                         .frame(width: segmentWidth(for: usage.cacheReadInputTokens, in: geo.size.width))
                 }
             }
@@ -1189,7 +1925,7 @@ struct ErrorView: View {
             if message == "no-stats-file" {
                 Image(systemName: "sparkles")
                     .font(.title2)
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Text("Welcome to ClaudeVibes!")
                     .font(.headline)
                 Text("No Claude Code stats found yet.")
@@ -1202,7 +1938,7 @@ struct ErrorView: View {
             } else if message == "stats-parse-error" {
                 Image(systemName: "doc.badge.gearshape")
                     .font(.title2)
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Text("Stats Format Changed")
                     .font(.headline)
                 Text("Claude Code's stats format may have updated.")
@@ -1215,7 +1951,7 @@ struct ErrorView: View {
             } else {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.title2)
-                    .foregroundColor(.claudePink)
+                    .foregroundColor(.appPrimary)
                 Text("Error Loading Stats")
                     .font(.headline)
                 Text(message)
@@ -1233,7 +1969,7 @@ struct LoadingView: View {
     var body: some View {
         VStack(spacing: 8) {
             ProgressView()
-                .tint(.claudePink)
+                .tint(.appPrimary)
             Text("Loading stats...")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -1263,7 +1999,7 @@ struct FooterView: View {
                         .foregroundColor(.primary)
                     HStack(spacing: 0) {
                         Link("Drew", destination: URL(string: "https://drewmatthews.ca")!)
-                            .foregroundColor(.claudePink)
+                            .foregroundColor(.appPrimary)
                         Text(" made this with Claude Code \u{2728}")
                             .foregroundColor(.secondary)
                     }
@@ -1313,7 +2049,7 @@ struct FooterView: View {
                         Text("Refresh")
                     }
                 }
-                .buttonStyle(HoverButtonStyle(color: .claudePink))
+                .buttonStyle(HoverButtonStyle(color: .appPrimary))
                 .disabled(statsManager.isRefreshing)
 
                 Button("Quit") {
