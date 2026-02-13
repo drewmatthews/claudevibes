@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct ClaudeUsageMenuApp: App {
+struct LouApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var statsManager = StatsManager()
 
