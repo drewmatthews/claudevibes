@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E81234560001 /* ClaudeUsageMenuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550001 /* ClaudeUsageMenuApp.swift */; };
+		E81234560001 /* LouApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550001 /* LouApp.swift */; };
 		E81234560002 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550002 /* MenuBarView.swift */; };
 		E81234560003 /* UsageStatsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550003 /* UsageStatsModel.swift */; };
 		E81234560004 /* StatsFileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550004 /* StatsFileWatcher.swift */; };
@@ -16,11 +16,12 @@
 		E81234560007 /* ThemeColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550007 /* ThemeColors.swift */; };
 		E81234560008 /* VibeMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550008 /* VibeMessages.swift */; };
 		E81234560009 /* PreferencesWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81234550009 /* PreferencesWindow.swift */; };
+		E8123456000A /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8123455000A /* AppSettings.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		E81234550000 /* ClaudeVibes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeVibes.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		E81234550001 /* ClaudeUsageMenuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageMenuApp.swift; sourceTree = "<group>"; };
+		E81234550000 /* Lou.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lou.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E81234550001 /* LouApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LouApp.swift; sourceTree = "<group>"; };
 		E81234550002 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		E81234550003 /* UsageStatsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatsModel.swift; sourceTree = "<group>"; };
 		E81234550004 /* StatsFileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsFileWatcher.swift; sourceTree = "<group>"; };
@@ -29,6 +30,7 @@
 		E81234550007 /* ThemeColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeColors.swift; sourceTree = "<group>"; };
 		E81234550008 /* VibeMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeMessages.swift; sourceTree = "<group>"; };
 		E81234550009 /* PreferencesWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesWindow.swift; sourceTree = "<group>"; };
+		E8123455000A /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,15 +47,15 @@
 		E81234570000 = {
 			isa = PBXGroup;
 			children = (
-				E81234580000 /* ClaudeUsageMenu */,
+				E81234580000 /* Lou */,
 				E81234590000 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		E81234580000 /* ClaudeUsageMenu */ = {
+		E81234580000 /* Lou */ = {
 			isa = PBXGroup;
 			children = (
-				E81234550001 /* ClaudeUsageMenuApp.swift */,
+				E81234550001 /* LouApp.swift */,
 				E81234550002 /* MenuBarView.swift */,
 				E81234550003 /* UsageStatsModel.swift */,
 				E81234550004 /* StatsFileWatcher.swift */,
@@ -61,15 +63,16 @@
 				E81234550007 /* ThemeColors.swift */,
 				E81234550008 /* VibeMessages.swift */,
 				E81234550009 /* PreferencesWindow.swift */,
+				E8123455000A /* AppSettings.swift */,
 				E81234550005 /* Assets.xcassets */,
 			);
-			path = ClaudeUsageMenu;
+			path = Lou;
 			sourceTree = "<group>";
 		};
 		E81234590000 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E81234550000 /* ClaudeVibes.app */,
+				E81234550000 /* Lou.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,9 +80,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E812345A0000 /* ClaudeVibes */ = {
+		E812345A0000 /* Lou */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E812345D0000 /* Build configuration list for PBXNativeTarget "ClaudeVibes" */;
+			buildConfigurationList = E812345D0000 /* Build configuration list for PBXNativeTarget "Lou" */;
 			buildPhases = (
 				E812345E0001 /* Sources */,
 				E812345F0001 /* Frameworks */,
@@ -89,9 +92,9 @@
 			);
 			dependencies = (
 			);
-			name = ClaudeVibes;
-			productName = ClaudeUsageMenu;
-			productReference = E81234550000 /* ClaudeVibes.app */;
+			name = Lou;
+			productName = Lou;
+			productReference = E81234550000 /* Lou.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -109,7 +112,7 @@
 					};
 				};
 			};
-			buildConfigurationList = E812345C0000 /* Build configuration list for PBXProject "ClaudeVibes" */;
+			buildConfigurationList = E812345C0000 /* Build configuration list for PBXProject "Lou" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -122,7 +125,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E812345A0000 /* ClaudeVibes */,
+				E812345A0000 /* Lou */,
 			);
 		};
 /* End PBXProject section */
@@ -143,7 +146,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E81234560001 /* ClaudeUsageMenuApp.swift in Sources */,
+				E81234560001 /* LouApp.swift in Sources */,
 				E81234560002 /* MenuBarView.swift in Sources */,
 				E81234560003 /* UsageStatsModel.swift in Sources */,
 				E81234560004 /* StatsFileWatcher.swift in Sources */,
@@ -151,6 +154,7 @@
 				E81234560007 /* ThemeColors.swift in Sources */,
 				E81234560008 /* VibeMessages.swift in Sources */,
 				E81234560009 /* PreferencesWindow.swift in Sources */,
+				E8123456000A /* AppSettings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,7 +304,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.4.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.ClaudeUsageMenu;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lou;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -328,7 +332,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.4.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.ClaudeUsageMenu;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lou;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -338,7 +342,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		E812345C0000 /* Build configuration list for PBXProject "ClaudeVibes" */ = {
+		E812345C0000 /* Build configuration list for PBXProject "Lou" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E81234610000 /* Debug */,
@@ -347,7 +351,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E812345D0000 /* Build configuration list for PBXNativeTarget "ClaudeVibes" */ = {
+		E812345D0000 /* Build configuration list for PBXNativeTarget "Lou" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E81234630000 /* Debug */,

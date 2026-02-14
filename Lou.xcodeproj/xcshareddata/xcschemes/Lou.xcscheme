@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E812345A0000"
-               BuildableName = "ClaudeVibes.app"
-               BlueprintName = "ClaudeVibes"
-               ReferencedContainer = "container:ClaudeVibes.xcodeproj">
+               BuildableName = "Lou.app"
+               BlueprintName = "Lou"
+               ReferencedContainer = "container:Lou.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E812345A0000"
-            BuildableName = "ClaudeVibes.app"
-            BlueprintName = "ClaudeVibes"
-            ReferencedContainer = "container:ClaudeVibes.xcodeproj">
+            BuildableName = "Lou.app"
+            BlueprintName = "Lou"
+            ReferencedContainer = "container:Lou.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E812345A0000"
-            BuildableName = "ClaudeVibes.app"
-            BlueprintName = "ClaudeVibes"
-            ReferencedContainer = "container:ClaudeVibes.xcodeproj">
+            BuildableName = "Lou.app"
+            BlueprintName = "Lou"
+            ReferencedContainer = "container:Lou.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
