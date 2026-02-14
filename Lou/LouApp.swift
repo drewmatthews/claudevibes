@@ -5,6 +5,20 @@ struct LouApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var statsManager = StatsManager()
 
+    init() {
+        migrateThemeDefaults()
+    }
+
+    private func migrateThemeDefaults() {
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: "theme") == "claudePink" {
+            defaults.set("rosePink", forKey: "theme")
+        }
+        if defaults.string(forKey: "selectedTheme") == "claudePink" {
+            defaults.set("rosePink", forKey: "selectedTheme")
+        }
+    }
+
     var body: some Scene {
         // Normal mode: menu bar extra
         MenuBarExtra {
