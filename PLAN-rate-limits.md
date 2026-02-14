@@ -1,4 +1,4 @@
-# Plan: Adding Rate Limit Features to ClaudeVibes
+# Plan: Adding Rate Limit Features to Lou
 
 ## Current State
 
@@ -196,3 +196,4 @@ let estimatedPercent = Double(recentTokens) / assumedLimit * 100
 - [Anthropic Rate Limits Documentation](https://platform.claude.com/docs/en/api/rate-limits)
 - [Rate limit headers are documented](https://platform.claude.com/docs/en/api/rate-limits#response-headers)
 - Local investigation of `~/.claude/` directory
+

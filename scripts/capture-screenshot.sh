@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Capture a screenshot of ClaudeVibes for the website
+# Capture a screenshot of Lou for the website
 # Usage: ./scripts/capture-screenshot.sh [output-path]
 #
 # The app captures its own window content internally for reliability.
@@ -9,12 +9,12 @@
 set -e
 
 # Configuration
-APP_NAME="ClaudeVibes"
+APP_NAME="Lou"
 DEFAULT_OUTPUT="website/img/Screenshot.png"
 OUTPUT_PATH="${1:-$DEFAULT_OUTPUT}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-SCREENSHOT_PATH_FILE="/tmp/claudevibes_screenshot_path"
+SCREENSHOT_PATH_FILE="/tmp/lou_screenshot_path"
 
 # Convert to absolute path if relative
 if [[ "$OUTPUT_PATH" != /* ]]; then
@@ -31,7 +31,7 @@ fi
 if [[ ! -d "$APP_PATH" ]]; then
     echo "Error: Could not find $APP_NAME.app"
     echo "Please build the app in Release mode first:"
-    echo "  xcodebuild -project ClaudeVibes.xcodeproj -scheme ClaudeUsageMenu -configuration Release build"
+    echo "  xcodebuild -project Lou.xcodeproj -scheme Lou -configuration Release build"
     exit 1
 fi
 

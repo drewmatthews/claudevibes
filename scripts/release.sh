@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ClaudeVibes Release Script
+# Lou Release Script
 # Automates the full release workflow:
 #   1. Update version number in Xcode project
 #   2. Build the app in Release mode
@@ -19,9 +19,9 @@
 set -e
 
 # Configuration
-APP_NAME="ClaudeVibes"
-SCHEME_NAME="ClaudeUsageMenu"
-PROJECT_FILE="ClaudeVibes.xcodeproj"
+APP_NAME="Lou"
+SCHEME_NAME="Lou"
+PROJECT_FILE="Lou.xcodeproj"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 RELEASES_DIR="$PROJECT_DIR/Releases"
@@ -115,7 +115,7 @@ cd "$PROJECT_DIR"
 
 echo -e "${PINK}"
 echo "╔═══════════════════════════════════════════╗"
-echo "║       ClaudeVibes Release Script          ║"
+echo "║          Lou Release Script               ║"
 echo "╚═══════════════════════════════════════════╝"
 echo -e "${NC}"
 echo "Version: v$VERSION"
@@ -210,8 +210,8 @@ fi
 print_step "Updating website download link..."
 
 # Update the download link in index.html
-OLD_LINK_PATTERN='href="https://github.com/drewmatthews/claudevibes/releases/latest/download/ClaudeVibes-v[^"]*\.zip"'
-NEW_LINK="href=\"https://github.com/drewmatthews/claudevibes/releases/latest/download/${ZIP_NAME}\""
+OLD_LINK_PATTERN='href="https://github.com/drewmatthews/lou/releases/latest/download/Lou-v[^"]*\.zip"'
+NEW_LINK="href=\"https://github.com/drewmatthews/lou/releases/latest/download/${ZIP_NAME}\""
 
 sed -i '' "s|$OLD_LINK_PATTERN|$NEW_LINK|g" "$WEBSITE_DIR/index.html"
 
@@ -226,10 +226,10 @@ print_step "Copying zip to website releases..."
 mkdir -p "$WEBSITE_DIR/releases/latest/download"
 cp "$RELEASE_FOLDER/$ZIP_NAME" "$WEBSITE_DIR/releases/latest/download/"
 
-# Also keep a ClaudeVibes.zip symlink for convenience
+# Also keep a Lou.zip symlink for convenience
 cd "$WEBSITE_DIR/releases/latest/download"
-rm -f ClaudeVibes.zip
-ln -s "$ZIP_NAME" ClaudeVibes.zip
+rm -f Lou.zip
+ln -s "$ZIP_NAME" Lou.zip
 cd "$PROJECT_DIR"
 
 print_success "Zip copied to website/releases"
@@ -239,7 +239,7 @@ print_step "Creating release notes..."
 
 RELEASE_NOTES_FILE="$RELEASE_FOLDER/RELEASE_NOTES.md"
 cat > "$RELEASE_NOTES_FILE" << EOF
-# ClaudeVibes v$VERSION
+# Lou v$VERSION
 
 Released: $(date +"%Y-%m-%d")
 
@@ -250,7 +250,7 @@ ${RELEASE_NOTES:-"- Bug fixes and improvements"}
 ## Installation
 
 1. Download \`$ZIP_NAME\`
-2. Extract and drag \`ClaudeVibes.app\` to Applications
+2. Extract and drag \`Lou.app\` to Applications
 3. First launch: Right-click → Open (app is unsigned)
 
 ## Requirements
@@ -309,7 +309,7 @@ if [[ "$SKIP_GITHUB" == false ]]; then
         print_warning "Skipping GitHub release creation"
     else
         # Check if release already exists
-        if gh release view "v$VERSION" --repo drewmatthews/claudevibes &> /dev/null; then
+        if gh release view "v$VERSION" --repo drewmatthews/lou &> /dev/null; then
             print_warning "Release v$VERSION already exists on GitHub"
         else
             # Create the release
@@ -320,7 +320,7 @@ ${RELEASE_NOTES:-"- Bug fixes and improvements"}
 ## Installation
 
 1. Download \`$ZIP_NAME\`
-2. Extract and drag \`ClaudeVibes.app\` to Applications
+2. Extract and drag \`Lou.app\` to Applications
 3. First launch: Right-click → Open (app is unsigned)
 
 ## Requirements
@@ -330,11 +330,11 @@ ${RELEASE_NOTES:-"- Bug fixes and improvements"}
 
             gh release create "v$VERSION" \
                 "$RELEASE_FOLDER/$ZIP_NAME" \
-                --repo drewmatthews/claudevibes \
-                --title "ClaudeVibes v$VERSION" \
+                --repo drewmatthews/lou \
+                --title "Lou v$VERSION" \
                 --notes "$RELEASE_BODY"
 
-            print_success "GitHub release created: https://github.com/drewmatthews/claudevibes/releases/tag/v$VERSION"
+            print_success "GitHub release created: https://github.com/drewmatthews/lou/releases/tag/v$VERSION"
         fi
     fi
 else
@@ -351,7 +351,7 @@ echo "Version:     v$VERSION"
 echo "Build:       $NEW_BUILD"
 echo "Release:     $RELEASE_FOLDER"
 echo "Zip:         $ZIP_NAME"
-echo "GitHub:      https://github.com/drewmatthews/claudevibes/releases/tag/v$VERSION"
+echo "GitHub:      https://github.com/drewmatthews/lou/releases/tag/v$VERSION"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Test the app from: $RELEASE_FOLDER/$APP_NAME.app"

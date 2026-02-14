@@ -1,4 +1,4 @@
-# ClaudeVibes
+# Lou
 
 A tiny macOS menu bar app that keeps an eye on your **Claude Code stats** so you don't have to.
 
@@ -6,7 +6,7 @@ Because if I'm gonna vibe-code, I want receipts.
 
 ## What's this thing?
 
-ClaudeVibes lives up in your menu bar and gives you a quick read on how hard you've been running Claude Code lately:
+Lou lives up in your menu bar and gives you a quick read on how hard you've been running Claude Code lately:
 
 - **Today's damage** — messages, sessions, tool calls with live updates
 - **Peak hours** — 24-hour activity chart showing when you're most active
@@ -42,7 +42,7 @@ Real-time parsing of Claude Code session files with automatic refresh.
 ## Install
 
 1. Download the latest release
-2. Drag `ClaudeVibes.app` into your Applications folder
+2. Drag `Lou.app` into your Applications folder
 3. Open it
    - First time you'll need to **right-click → Open** (it's unsigned)
 4. Look for the little Claude orb in your menu bar
@@ -55,7 +55,7 @@ Real-time parsing of Claude Code session files with automatic refresh.
 
 ## How it works
 
-ClaudeVibes reads data from two sources:
+Lou reads data from two sources:
 
 1. **Stats cache** — `~/.claude/stats-cache.json` for aggregated stats
 2. **Session files** — `~/.claude/projects/*/` for live today stats
